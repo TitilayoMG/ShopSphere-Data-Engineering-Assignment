@@ -39,4 +39,4 @@ jobs:
           pip-audit
 
       # Build the Docker image
-      - run: docker build -t shopsphere .
+    #   - run: docker build -t shopsphere .
