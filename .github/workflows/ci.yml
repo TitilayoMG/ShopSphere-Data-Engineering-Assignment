@@ -1,0 +1,42 @@
+name: SHOPSHERE Project CI
+
+on:
+  push:
+    branches:
+      - main
+      - feature/**
+
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+      # Download the repository
+      - uses: actions/checkout@v4
+
+      # Install Python
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Install project dependencies
+      - run: pip install -r requirements.txt
+
+      # Run unit tests
+      - name: Run unit tests
+        run: |
+          python -m unittest discover
+
+      # Scan dependencies for known vulnerabilities
+      - name: Security scan
+        run: |
+          pip install pip-audit
+          pip-audit
+
+      # Build the Docker image
+      - run: docker build -t shopsphere .
