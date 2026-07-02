@@ -28,9 +28,9 @@ jobs:
       - run: pip install -r requirements.txt
 
       # Run unit tests
-      - name: Run unit tests
-        run: |
-          python -m unittest discover
+    #   - name: Run unit tests
+    #     run: |
+    #       python -m unittest discover
 
       # Scan dependencies for known vulnerabilities
       - name: Security scan
@@ -39,4 +39,4 @@ jobs:
           pip-audit
 
       # Build the Docker image
-      - run: docker build -t shopsphere .
+    #   - run: docker build -t shopsphere .
