@@ -25,7 +25,7 @@ jobs:
           python-version: "3.12"
 
       # Install project dependencies
-      - run: pip install -r infrastructure/mock-api/requirements.txt
+      - run: pip install -r infrastructure/mock_api/requirements.txt
 
       # Run unit tests
     #   - name: Run unit tests
@@ -39,8 +39,6 @@ jobs:
           pip-audit
 
       # Build the Docker image
-      - run: docker build -t shopsphere .
-
       - run: docker build -t shopsphere \
-          -f infrastructure/mock-api/Dockerfile \
-          infrastructure/mock-api
+          -f infrastructure/mock_api/Dockerfile \
+          infrastructure/mock_api
