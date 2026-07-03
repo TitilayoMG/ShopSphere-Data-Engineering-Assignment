@@ -40,6 +40,4 @@ jobs:
           pip-audit
 
       # Build the Docker image
-      - run: docker build -t shopsphere \
-          -f infrastructure/mock_api/Dockerfile \
-          infrastructure/mock_api
+      - run: docker build -t shopsphere -f infrastructure/mock_api/Dockerfile infrastructure/mock_api
