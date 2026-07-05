@@ -88,6 +88,22 @@ services:
       retries: 10
     networks: [shopsphere-net]
 
+  pipeline:
+    build:
+      context: ./pipeline
+      dockerfile: Dockerfile
+    container_name: shopsphere-pipeline
+    env_file:
+      - .env
+    depends_on:
+      source-postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    volumes:
+      - ./pipeline:/app
+    networks: [shopsphere-net]
+
 volumes:
   source_postgres_data:
   source_mongodb_data:

@@ -82,6 +82,7 @@ Delete containers and local volumes, then start from a clean state:
 ```bash
 docker compose down -v
 docker compose up -d --build
+docker compose up --build pipeline
 ```
 
 ## Files You Should Create Or Modify
