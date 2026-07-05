@@ -19,9 +19,9 @@ import psycopg2
 import pyarrow as pa
 import pyarrow.parquet as pq
 from dotenv import load_dotenv
-from minio import Minio
 from minio.error import S3Error
 from pymongo import MongoClient
+from utils import upload_to_minio, get_minio_client
 
 load_dotenv()
 
@@ -53,40 +53,6 @@ def load_config():
 # -------------------------
 # COMMON UTILITIES
 # -------------------------
-def get_minio_client():
-    """
-    Create and return a MinIO client.
-    """
-    client = Minio(
-        endpoint=os.getenv("MINIO_ENDPOINT"),
-        access_key=os.getenv("MINIO_ACCESS_KEY"),
-        secret_key=os.getenv("MINIO_SECRET_KEY"),
-        secure=os.getenv("MINIO_SECURE", "false").lower() == "true"
-    )
-    logger.info("Connected to MinIO.")
-    bucket = os.getenv("MINIO_BUCKET")
-    return client, bucket
-
-
-def upload_to_minio(
-    client,
-    bucket,
-    object_name,
-    buffer,
-    content_type="application/octet-stream"
-):
-    """
-    Upload an in-memory file to MinIO.
-    """
-    buffer.seek(0)
-    client.put_object(
-        bucket_name=bucket,
-        object_name=object_name,
-        data=buffer,
-        length=buffer.getbuffer().nbytes,
-        content_type=content_type
-    )
-
 def _read_watermark(client, bucket, source, object_name, field):
     watermark_file = "metadata/shopsphere_watermark.json"
     try:
@@ -249,7 +215,7 @@ def postgres_extraction():
             )
 
             object_name = (
-                f"raw/{table}/"
+                f"raw/postgres/{table}/"
                 f"{table}_{datetimestamp}_file{file_number}.parquet"
             )
 
@@ -321,15 +287,6 @@ def mongodb_extraction():
 
     for collection_name in MONGODB_CONFIG["collections"]:
         logger.info(f"Starting extraction for collection '{collection_name}'")
-        #
-        # Safe rerun (full refresh)
-        #
-        # for obj in minio_client.list_objects(
-        #     bucket,
-        #     prefix=f"raw/{collection_name}/{collection_name}_",
-        #     recursive=True
-        # ):
-        #     minio_client.remove_object(bucket, obj.object_name)
         
         watermark = _read_watermark(
             minio_client,
@@ -340,7 +297,6 @@ def mongodb_extraction():
         )
 
         collection = database[collection_name]
-        # cursor = collection.find({}, no_cursor_timeout=True).batch_size(CHUNK_SIZE)
 
         query = {}
         if watermark:
@@ -358,10 +314,6 @@ def mongodb_extraction():
         latest_object_id = watermark
 
         for document in cursor:
-            #
-            # Convert ObjectId to string
-            #
-            
             if latest_object_id is None or document["_id"] > ObjectId(latest_object_id):
                 latest_object_id = str(document["_id"])
 
@@ -379,7 +331,7 @@ def mongodb_extraction():
                 )
 
                 object_name = (
-                    f"raw/{collection_name}/"
+                    f"raw/mongodb/{collection_name}/"
                     f"{collection_name}_{datetimestamp}_file{file_number}.parquet"
                 )
 
@@ -416,7 +368,7 @@ def mongodb_extraction():
             )
 
             object_name = (
-                f"raw/{collection_name}/"
+                f"raw/mongodb/{collection_name}/"
                 f"{collection_name}_{datetimestamp}_file{file_number}.parquet"
             )
 
@@ -532,7 +484,7 @@ def api_extraction():
             )
 
             object_name = (
-                f"raw/{table}/"
+                f"raw/api/{table}/"
                 f"{table}_{datetimestamp}_"
                 f"file{file_number}.parquet"
             )
