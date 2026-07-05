@@ -1,0 +1,37 @@
+{
+  "chunk_size": 100,
+
+  "data_sources": {
+    "postgres": {
+      "tables": [
+        "customers",
+        "orders",
+        "products",
+        "order_items",
+        "payments"
+      ]
+    },
+
+    "mongodb": {
+      "collections": [
+        "customer_sessions",
+        "product_reviews"
+      ]
+    },
+
+    "fast_api": {
+      "endpoints": [
+        {
+              "table": "carriers",
+              "endpoint": "/api/v1/carriers",
+              "paginated": false
+          },
+          {
+              "table": "shipments",
+              "endpoint": "/api/v1/shipments",
+              "paginated": true
+          }
+      ]
+    }
+  }
+}
