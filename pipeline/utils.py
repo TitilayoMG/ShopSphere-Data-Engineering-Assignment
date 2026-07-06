@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 # -------------------------
 def get_minio_client():
     """
-    Create and return a MinIO client.
+    Create and return a MinIO client and bucket.
     """
     client = Minio(
         endpoint=os.getenv("MINIO_ENDPOINT"),
