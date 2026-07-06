@@ -92,13 +92,20 @@ def transform_postgres():
                     )
 
                 # Convert dataframe to parquet
+                # output_buffer = io.BytesIO()
+                # table = pa.Table.from_pandas(df)
+                # pq.write_table(table, output_buffer)
+
                 output_buffer = io.BytesIO()
-                table = pa.Table.from_pandas(df)
-                pq.write_table(table, output_buffer)
+                df.to_parquet(
+                    output_buffer,
+                    engine="pyarrow",
+                    index=False,
+                )
 
                 # Destination path: processed/file.parquet
                 filename = parts[-1]
-                destination = f"processed/{filename}"
+                destination = f"processed/postgres/{table_name}/{filename}"
 
                 upload_to_minio(
                     client=client,
@@ -144,124 +151,165 @@ def transform_mongodb():
         - Clean data
         - Convert datatypes
     Output:
-        processed/<filename>.parquet
+        processed/mongodb/<filename>.parquet
     """
-    objects = client.list_objects(
-        bucket,
-        prefix="raw/mongodb/",
-        recursive=True,
-    )
-    for obj in objects:
-        object_name = obj.object_name
-        if object_name.endswith("/") or not object_name.endswith(".parquet"):
-            continue
-        parts = object_name.split("/")
-        if len(parts) < 4:
-            logger.warning(f"Skipping invalid object {object_name}")
-            continue
-
-        collection = parts[2]
-        filename = parts[-1]
-        logger.info(f"Transforming MongoDB collection '{collection}'")
-
-        response = client.get_object(bucket, object_name)
-        table = pq.read_table(BytesIO(response.read()))
-        df = table.to_pandas()
-
-        response.close()
-        response.release_conn()
-
-        # CUSTOMER SESSIONS
-        if collection == "customer_sessions":
-            # explode events
-            df = df.explode("events", ignore_index=True)
-            # normalize nested event fields
-            event_df = pd.json_normalize(df["events"])
-            # flatten location
-            location_df = pd.json_normalize(df["location"])
-            # flatten device
-            device_df = pd.json_normalize(df["device"])
-            df = df.drop(columns=["events", "location", "device"])
-            df = pd.concat(
-                [
-                    df.reset_index(drop=True),
-                    event_df.reset_index(drop=True),
-                    location_df.reset_index(drop=True),
-                    device_df.reset_index(drop=True),
-                ],
-                axis=1,
-            )
-            # rename columns
-            df = df.rename(
-                columns={
-                    "type": "device_type",
-                    "os": "device_os",
-                }
-            )
-            # timestamps
-            datetime_cols = [
-                "started_at",
-                "ended_at",
-                "event_time",
-            ]
-            for col in datetime_cols:
-                df[col] = pd.to_datetime(df[col], errors="coerce")
-            # integer columns
-            int_cols = [
-                "customer_id",
-                "product_id",
-                "quantity",
-            ]
-            for col in int_cols:
-                df[col] = df[col].astype("Int64")
-            # remove duplicate events
-            df = df.drop_duplicates()
-        
-        # PRODUCT REVIEWS
-        elif collection == "product_reviews":
-            df["created_at"] = pd.to_datetime(
-                df["created_at"],
-                errors="coerce",
-            )
-            integer_cols = [
-                "customer_id",
-                "product_id",
-                "rating",
-                "helpful_votes",
-            ]
-            for col in integer_cols:
-                df[col] = df[col].astype("Int64")
-            df["verified_purchase"] = (
-                df["verified_purchase"]
-                .fillna(False)
-                .astype(bool)
-            )
-            df["review_text"] = (df["review_text"].fillna("").str.strip())
-            df["title"] = (df["title"].fillna("").str.strip())
-            df = df.drop_duplicates()
-        else:
-            logger.warning(f"Unknown collection '{collection}'")
-            continue
-        # Write parquet
-        output_buffer = BytesIO()
-        df.to_parquet(
-            output_buffer,
-            index=False,
-            engine="pyarrow",
+    logger.info("Starting MongoDB transformation from MinIO")
+    try:
+        objects = client.list_objects(
+            bucket,
+            prefix="raw/mongodb/",
+            recursive=True,
         )
-        output_buffer.seek(0)
-        destination = (
-            f"processed/{filename}"
-        )
+        for obj in objects:
+            object_name = obj.object_name
+            if object_name.endswith("/") or not object_name.endswith(".parquet"):
+                continue
+            parts = object_name.split("/")
+            if len(parts) < 4:
+                logger.warning(f"Skipping invalid object {object_name}")
+                continue
 
-        client.put_object(
-            bucket_name=bucket,
-            object_name=destination,
-            data=output_buffer,
-            length=output_buffer.getbuffer().nbytes,
-            content_type="application/octet-stream",
-        )
-        logger.info(f"Saved {destination}")
+            collection = parts[2]
+            filename = parts[-1]
+            logger.info(f"Transforming MongoDB collection '{collection}'")
+
+            response = client.get_object(bucket, object_name)
+            buffer = io.BytesIO(response.read())
+            df = pd.read_parquet(buffer)
+
+            response.close()
+            response.release_conn()
+
+            logger.info(
+                f"Loaded {len(df)} records "
+                f"({len(df.columns)} columns)"
+            )
+
+            # CUSTOMER SESSIONS
+            if collection == "customer_sessions":
+                rows_before = len(df)
+
+                # explode events
+                df = df.explode("events", ignore_index=True)
+                rows_after_explode = len(df)
+
+                # normalize nested fields
+                event_df = pd.json_normalize(df["events"])
+
+                df = df.drop(columns=["events"])
+                df = pd.concat(
+                    [
+                        df.reset_index(drop=True),
+                        event_df.reset_index(drop=True)
+                    ],
+                    axis=1,
+                )
+                df = df.rename(
+                    columns={
+                        "type": "device_type",
+                        "os": "device_os",
+                    }
+                )
+                # timestamps
+                datetime_cols = [
+                    "started_at",
+                    "ended_at",
+                    "event_time",
+                ]
+                for col in datetime_cols:
+                    df[col] = pd.to_datetime(df[col], errors="coerce")
+                
+                # integer columns
+                int_cols = [
+                    "customer_id",
+                    "product_id",
+                    "quantity",
+                ]
+                for col in int_cols:
+                    df[col] = df[col].astype("Int64")
+
+                # remove duplicate events
+                df = df.drop_duplicates()
+                duplicates_removed = rows_after_explode - len(df)
+                logger.info(
+                    f"customer_sessions: "
+                    f"rows_before={rows_before}, "
+                    f"rows_after_explode={rows_after_explode}, "
+                    f"duplicates_removed={duplicates_removed}, "
+                    f"final_rows={len(df)}"
+                )
+            
+            # PRODUCT REVIEWS
+            elif collection == "product_reviews":
+                df["created_at"] = pd.to_datetime(
+                    df["created_at"],
+                    errors="coerce",
+                )
+                integer_cols = [
+                    "customer_id",
+                    "product_id",
+                    "rating",
+                    "helpful_votes",
+                ]
+                for col in integer_cols:
+                    df[col] = df[col].astype("Int64")
+
+                df["verified_purchase"] = (
+                    df["verified_purchase"]
+                    .fillna(False)
+                    .astype(bool)
+                )
+                null_reviews = df["review_text"].isna().sum()
+                null_titles = df["title"].isna().sum()
+                null_verified = df["verified_purchase"].isna().sum()
+
+                df["verified_purchase"] = (df["verified_purchase"].fillna(False).astype(bool))
+                df["review_text"] = (df["review_text"].fillna("").str.strip())
+                df["title"] = (df["title"].fillna("").str.strip())
+
+                rows_before = len(df)
+                df = df.drop_duplicates()
+
+                duplicates_removed = rows_before - len(df)
+
+                logger.info(
+                    f"product_reviews: "
+                    f"null_review_text={null_reviews}, "
+                    f"null_title={null_titles}, "
+                    f"null_verified_purchase={null_verified}, "
+                    f"duplicates_removed={duplicates_removed}, "
+                    f"final_rows={len(df)}"
+                )
+            else:
+                logger.warning(f"Unknown collection '{collection}'")
+                continue
+
+            # Write parquet
+            output_buffer = BytesIO()
+            df.to_parquet(
+                output_buffer,
+                index=False,
+                engine="pyarrow",
+            )
+            destination = (f"processed/mongodb/{collection}/{filename}")
+            upload_to_minio(
+                client=client,
+                bucket=bucket,
+                object_name=destination,
+                buffer=output_buffer,
+                content_type="application/octet-stream"
+            )
+            logger.info(
+                f"Successfully uploaded "
+                f"{len(df)} records "
+                f"({len(df.columns)} columns) "
+                f"to '{destination}'"
+            )
+        logger.info("Completed MongoDB transformation")
+    
+    except Exception as e:
+        logger.exception(f"MongoDB transformation failed: {e}")
+        raise        
 
 
 
@@ -291,120 +339,149 @@ def transform_api():
     - Write the transformed dataset as a Parquet file to the MinIO `processed/` layer.
     - Log transformation progress and output file locations.
     """
-
-    objects = client.list_objects(
-        bucket,
-        prefix="raw/api/",
-        recursive=True,
-    )
-    for obj in objects:
-        object_name = obj.object_name
-        # Ignore folders and non-parquet files
-        if object_name.endswith("/") or not object_name.endswith(".parquet"):
-            continue
-        parts = object_name.split("/")
-        if len(parts) < 4:
-            logger.warning(f"Skipping invalid object {object_name}")
-            continue
-
-        table_name = parts[2]
-        filename = parts[-1]
-        logger.info(f"Transforming API table '{table_name}'")
-
-        response = client.get_object(
+    logger.info("Starting API transformation from MinIO")
+    try:
+        objects = client.list_objects(
             bucket,
-            object_name,
+            prefix="raw/api/",
+            recursive=True,
         )
-        table = pq.read_table(BytesIO(response.read()))
-        df = table.to_pandas()
+        for obj in objects:
+            object_name = obj.object_name
 
-        response.close()
-        response.release_conn()
-        # -----------------------------
-        # SHIPMENTS
-        # -----------------------------
-        if table_name == "shipments":
-            # Explode events
-            # Flatten events (1 shipment -> many rows)
-            df = df.explode("events", ignore_index=True)
-            logger.info(df.columns.tolist())
+            # Ignore folders and non-parquet files
+            if object_name.endswith("/") or not object_name.endswith(".parquet"):
+                continue
 
-            # Expand event dictionary
-            events_df = pd.json_normalize(df["events"])
-            logger.info(events_df.columns.tolist())
+            parts = object_name.split("/")
+            if len(parts) < 4:
+                logger.warning(f"Skipping invalid object {object_name}")
+                continue
 
-            # Drop nested columns
-            df = df.drop(columns=["events"])
+            table_name = parts[2]
+            filename = parts[-1]
+            logger.info(f"Transforming API table '{table_name}'")
 
-            # Merge back together
-            df = pd.concat(
-                [
-                    df.reset_index(drop=True),
-                    events_df.reset_index(drop=True),
-                ],
-                axis=1,
+            response = client.get_object(bucket, object_name)
+            buffer = io.BytesIO(response.read())
+            df = pd.read_parquet(buffer)
+
+            response.close()
+            response.release_conn()
+
+            logger.info(
+                f"Loaded {len(df)} records "
+                f"({len(df.columns)} columns)"
             )
+            # -----------------------------
+            # SHIPMENTS
+            # -----------------------------
+            if table_name == "shipments":
+                rows_before = len(df)
 
-            # Convert timestamps
-            datetime_columns = [
-                "shipped_at",
-                "estimated_delivery_at",
-                "delivered_at",
-                "updated_at",
-                "event_time",
-            ]
+                # Explode events
+                df = df.explode("events", ignore_index=True)
+                rows_after_explode = len(df)
 
-            for col in datetime_columns:
-                if col in df.columns:
-                    df[col] = pd.to_datetime(
-                        df[col],
-                        errors="coerce",
-                    )
+                # Expand event dictionary
+                events_df = pd.json_normalize(df["events"])
 
-            # Integer columns
-            if "order_id" in df.columns:
-                df["order_id"] = df["order_id"].astype("Int64")
+                # Drop nested columns
+                df = df.drop(columns=["events"])
+
+                # Merge back together
+                df = pd.concat(
+                    [
+                        df.reset_index(drop=True),
+                        events_df.reset_index(drop=True),
+                    ],
+                    axis=1,
+                )
+
+                # Convert timestamps
+                datetime_columns = [
+                    "shipped_at",
+                    "estimated_delivery_at",
+                    "delivered_at",
+                    "updated_at",
+                    "event_time",
+                ]
+
+                for col in datetime_columns:
+                    if col in df.columns:
+                        df[col] = pd.to_datetime(
+                            df[col],
+                            errors="coerce",
+                        )
+
+                # Integer columns
+                if "order_id" in df.columns:
+                    df["order_id"] = df["order_id"].astype("Int64")
+                
+                df = df.drop(columns=["delivery_address_extra"], errors="ignore")
+                df = df.drop_duplicates()
+
+                duplicates_removed = rows_after_explode - len(df)
+
+                logger.info(
+                    f"shipments: "
+                    f"rows_before={rows_before}, "
+                    f"rows_after_explode={rows_after_explode}, "
+                    f"duplicates_removed={duplicates_removed}, "
+                    f"final_rows={len(df)}"
+                )
+
+            # -----------------------------
+            # CARRIERS
+            # -----------------------------
+            elif table_name == "carriers":
+                rows_before = len(df)
+
+                # Remove duplicate rows
+                df = df.drop_duplicates()
+                duplicates_removed = rows_before - len(df)
+
+                # Strip whitespace from string columns
+                string_columns = df.select_dtypes(include=["object", "string"]).columns
+
+                for col in string_columns:
+                    df[col] = df[col].str.strip()
+
+                logger.info(
+                    f"carriers: "
+                    f"duplicates_removed={duplicates_removed}, "
+                    f"final_rows={len(df)}"
+                )
+
+            else:
+                logger.warning(f"Unknown table '{table_name}'")
+                continue
+
             
-            df = df.drop(columns=["delivery_address_extra"], errors="ignore")
-            df = df.drop_duplicates()
+            # Write processed parquet
+            output_buffer = BytesIO()
+            df.to_parquet(
+                output_buffer,
+                index=False,
+                engine="pyarrow",
+            )
+            destination = (f"processed/api/{table_name}/{filename}")
+            upload_to_minio(
+                client=client,
+                bucket=bucket,
+                object_name=destination,
+                buffer=output_buffer,
+                content_type="application/octet-stream"
+            )
+            logger.info(
+                f"Uploaded '{destination}' "
+                f"({len(df)} records, {len(df.columns)} columns)"
+            )
+        logger.info("Completed API transformation")
 
-        # -----------------------------
-        # CARRIERS
-        # -----------------------------
-        elif table_name == "carriers":
-            # Remove duplicate rows
-            df = df.drop_duplicates()
-
-            # Strip whitespace from string columns
-            string_columns = df.select_dtypes(include=["object", "string"]).columns
-
-            for col in string_columns:
-                df[col] = df[col].str.strip()
-
-        else:
-            logger.warning(f"Unknown table '{table_name}'")
-            continue
-
-        
-        # Write processed parquet
-        output_buffer = BytesIO()
-        df.to_parquet(
-            output_buffer,
-            index=False,
-            engine="pyarrow",
-        )
-        output_buffer.seek(0)
-
-        destination = (f"processed/{filename}")
-        client.put_object(
-            bucket_name=bucket,
-            object_name=destination,
-            data=output_buffer,
-            length=output_buffer.getbuffer().nbytes,
-            content_type="application/octet-stream",
-        )
-        logger.info(f"Saved {destination}")
-
+    except Exception as e:
+        logger.exception(f"API transformation failed: {e}")
+        raise
 
 if __name__ == "__main__":
     transform_postgres()

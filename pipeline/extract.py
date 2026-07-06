@@ -8,21 +8,22 @@ import os
 import time
 from datetime import datetime
 from pathlib import Path
-import pandas as pd
 import requests
 from bson import ObjectId
 
 # -------------------------
 # Imports:  Custom Libraries
 # -------------------------
-import psycopg2
-import pyarrow as pa
-import pyarrow.parquet as pq
 from dotenv import load_dotenv
-from minio.error import S3Error
 from pymongo import MongoClient
-from utils import upload_to_minio, get_minio_client
-
+from utils import (
+    upload_to_minio,
+    get_minio_client,
+    get_postgres_connection,
+    records_to_parquet_buffer,
+    read_minio_watermark,
+    write_minio_watermark,
+)
 load_dotenv()
 
 # -------------------------
@@ -48,64 +49,6 @@ def load_config():
     return (
         config["data_sources"],
         config["chunk_size"]
-    )
-
-# -------------------------
-# COMMON UTILITIES
-# -------------------------
-def _read_watermark(client, bucket, source, object_name, field):
-    """
-    Reads the last processed watermark value for a specific source, object, and field
-    from the watermark metadata file stored in MinIO. 
-    Returns the stored watermark if it exists, 
-    returns None if the metadata file is missing, and raise
-    any unexpected storage errors.
-    """
-    watermark_file = "metadata/shopsphere_watermark.json"
-    try:
-        response = client.get_object(bucket, watermark_file)
-        data = json.loads(response.read().decode("utf-8"))
-        response.close()
-        response.release_conn()
-
-        return (
-            data
-            .get(source, {})
-            .get(object_name, {})
-            .get(field)
-        )
-    except S3Error as e:
-        if e.code == "NoSuchKey":
-            return None
-        raise
-
-def _write_watermark(client, bucket, source, object_name, field, value):
-    """
-    Update the pipeline watermark metadata by loading the existing watermark file,
-    modifying the specified tracking field for a given data source and object,
-    then writing the updated JSON back to MinIO. 
-    """
-    watermark_file = "metadata/shopsphere_watermark.json"
-    try:
-        response = client.get_object(bucket, watermark_file)
-        data = json.loads(response.read().decode("utf-8"))
-        response.close()
-        response.release_conn()
-
-    except S3Error as e:
-        if e.code == "NoSuchKey":
-            raise
-
-    data[source][object_name][field] = value
-    buffer = io.BytesIO(
-        json.dumps(data, indent=4).encode("utf-8")
-    )
-    upload_to_minio(
-        client=client,
-        bucket=bucket,
-        object_name=watermark_file,
-        buffer=buffer,
-        content_type="application/json"
     )
 
 # -------------------------
@@ -141,14 +84,7 @@ def postgres_extraction():
     """
 
     start_time = time.time()
-
-    postgres_conn = psycopg2.connect(
-        host=os.getenv("SOURCE_POSTGRES_HOST"),
-        port=os.getenv("SOURCE_POSTGRES_PORT"),
-        dbname=os.getenv("SOURCE_POSTGRES_DB"),
-        user=os.getenv("SOURCE_POSTGRES_USER"),
-        password=os.getenv("SOURCE_POSTGRES_PASSWORD")
-    )
+    postgres_conn = get_postgres_connection("SOURCE")
     logger.info("Connected to PostgreSQL.")
 
     total_rows = 0
@@ -174,7 +110,7 @@ def postgres_extraction():
             )
             cursor.execute(f"SELECT * FROM {table}")
         else:
-            watermark = _read_watermark(
+            watermark = read_minio_watermark(
                 minio_client,
                 bucket,
                 source="postgres",
@@ -217,7 +153,6 @@ def postgres_extraction():
             table_rows += len(rows)
             total_rows += len(rows)
 
-            # arrow_table = pa.Table.from_pylist([dict(zip(columns, row)) for row in rows])
             records = [dict(zip(columns, row)) for row in rows]
             if table != "order_items":
                 updated_index = columns.index("updated_at")
@@ -231,15 +166,9 @@ def postgres_extraction():
                     or page_latest > latest_updated_at
                 ):
                     latest_updated_at = page_latest
+    
+            df, buffer= records_to_parquet_buffer(records)
 
-            arrow_table = pa.Table.from_pylist(records)
-            buffer = io.BytesIO()
-
-            pq.write_table(
-                arrow_table,
-                buffer,
-                compression="snappy"
-            )
             object_name = (
                 f"raw/postgres/{table}/"
                 f"{table}_{datetimestamp}_file{file_number}.parquet"
@@ -262,7 +191,7 @@ def postgres_extraction():
 
         cursor.close()
         if table != "order_items" and latest_updated_at:
-            _write_watermark(
+            write_minio_watermark(
                 minio_client,
                 bucket,
                 source="postgres",
@@ -325,7 +254,7 @@ def mongodb_extraction():
 
     for collection_name in MONGODB_CONFIG["collections"]:
         logger.info(f"Starting extraction for collection '{collection_name}'")
-        watermark = _read_watermark(
+        watermark = read_minio_watermark(
             minio_client,
             bucket,
             source="mongodb",
@@ -358,14 +287,8 @@ def mongodb_extraction():
             batch.append(document)
 
             if len(batch) == CHUNK_SIZE:
-                table = pa.Table.from_pylist(batch)
-                buffer = io.BytesIO()
+                df, buffer= records_to_parquet_buffer(batch)
 
-                pq.write_table(
-                    table,
-                    buffer,
-                    compression="snappy"
-                )
                 object_name = (
                     f"raw/mongodb/{collection_name}/"
                     f"{collection_name}_{datetimestamp}_file{file_number}.parquet"
@@ -394,13 +317,7 @@ def mongodb_extraction():
         # Remaining documents
         #
         if batch:
-            table = pa.Table.from_pylist(batch)
-            buffer = io.BytesIO()
-            pq.write_table(
-                table,
-                buffer,
-                compression="snappy"
-            )
+            df, buffer= records_to_parquet_buffer(batch)
 
             object_name = (
                 f"raw/mongodb/{collection_name}/"
@@ -424,7 +341,7 @@ def mongodb_extraction():
             total_files += 1
 
         if latest_object_id and latest_object_id != watermark:
-            _write_watermark(
+            write_minio_watermark(
                 minio_client,
                 bucket,
                 source="mongodb",
@@ -469,7 +386,7 @@ def api_extraction():
     - Track the latest `updated_at` value across all extracted shipment records.
     - Update the watermark only if newer data was successfully extracted.
     """
-    watermark = _read_watermark(
+    watermark = read_minio_watermark(
         minio_client,
         bucket,
         source="fast_api",
@@ -522,13 +439,8 @@ def api_extraction():
                 logger.info(f"No more records found for {table}")
                 break
 
-            dataframe = pd.json_normalize(records, sep="_")
-            parquet_buffer = io.BytesIO()
-            dataframe.to_parquet(
-                parquet_buffer,
-                engine="pyarrow",
-                index=False
-            )
+            dataframe, parquet_buffer = records_to_parquet_buffer(records)
+
 
             object_name = (
                 f"raw/api/{table}/"
@@ -573,7 +485,7 @@ def api_extraction():
             f"{table}: extracted {total_records:,} records"
         )
     if latest_updated_at and latest_updated_at != watermark:
-        _write_watermark(
+        write_minio_watermark(
             minio_client,
             bucket,
             source="fast_api",
