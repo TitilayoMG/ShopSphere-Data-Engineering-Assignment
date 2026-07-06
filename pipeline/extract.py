@@ -19,9 +19,9 @@ import psycopg2
 import pyarrow as pa
 import pyarrow.parquet as pq
 from dotenv import load_dotenv
-from minio import Minio
 from minio.error import S3Error
 from pymongo import MongoClient
+from utils import upload_to_minio, get_minio_client
 
 load_dotenv()
 
@@ -53,41 +53,14 @@ def load_config():
 # -------------------------
 # COMMON UTILITIES
 # -------------------------
-def get_minio_client():
-    """
-    Create and return a MinIO client.
-    """
-    client = Minio(
-        endpoint=os.getenv("MINIO_ENDPOINT"),
-        access_key=os.getenv("MINIO_ACCESS_KEY"),
-        secret_key=os.getenv("MINIO_SECRET_KEY"),
-        secure=os.getenv("MINIO_SECURE", "false").lower() == "true"
-    )
-    logger.info("Connected to MinIO.")
-    bucket = os.getenv("MINIO_BUCKET")
-    return client, bucket
-
-
-def upload_to_minio(
-    client,
-    bucket,
-    object_name,
-    buffer,
-    content_type="application/octet-stream"
-):
-    """
-    Upload an in-memory file to MinIO.
-    """
-    buffer.seek(0)
-    client.put_object(
-        bucket_name=bucket,
-        object_name=object_name,
-        data=buffer,
-        length=buffer.getbuffer().nbytes,
-        content_type=content_type
-    )
-
 def _read_watermark(client, bucket, source, object_name, field):
+    """
+    Reads the last processed watermark value for a specific source, object, and field
+    from the watermark metadata file stored in MinIO. 
+    Returns the stored watermark if it exists, 
+    returns None if the metadata file is missing, and raise
+    any unexpected storage errors.
+    """
     watermark_file = "metadata/shopsphere_watermark.json"
     try:
         response = client.get_object(bucket, watermark_file)
@@ -107,6 +80,11 @@ def _read_watermark(client, bucket, source, object_name, field):
         raise
 
 def _write_watermark(client, bucket, source, object_name, field, value):
+    """
+    Update the pipeline watermark metadata by loading the existing watermark file,
+    modifying the specified tracking field for a given data source and object,
+    then writing the updated JSON back to MinIO. 
+    """
     watermark_file = "metadata/shopsphere_watermark.json"
     try:
         response = client.get_object(bucket, watermark_file)
@@ -144,6 +122,24 @@ minio_client, bucket = get_minio_client()
 # DATA SOURCE 1: Postgres
 # =====================================================================
 def postgres_extraction():
+    """
+    Extract data from PostgreSQL tables and store it as Parquet files in MinIO.
+
+    Steps:
+    - Establish a connection to the source PostgreSQL database.
+    - Iterate through each configured table.
+    - Perform incremental extraction using the stored `updated_at` watermark
+    when available.
+    - Perform a full extraction for `order_items` table without watermark support
+    - Read data in chunks to minimize memory usage.
+    - Convert each chunk to Apache Arrow format and write it as a Snappy-compressed
+    Parquet file.
+    - Upload each Parquet file to the appropriate raw data path in MinIO.
+    - Track the latest `updated_at` value processed during extraction.
+    - Update the watermark after a successful extraction for incremental tables.
+    - Log extraction progress, file details, row counts, and execution summary.
+    """
+
     start_time = time.time()
 
     postgres_conn = psycopg2.connect(
@@ -177,7 +173,6 @@ def postgres_extraction():
                 "order_items has no updated_at column. Performing full extraction."
             )
             cursor.execute(f"SELECT * FROM {table}")
-
         else:
             watermark = _read_watermark(
                 minio_client,
@@ -210,7 +205,6 @@ def postgres_extraction():
                     ORDER BY updated_at
                     """
                 )
-
         datetimestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
 
         file_number = 1
@@ -220,7 +214,6 @@ def postgres_extraction():
             rows = cursor.fetchmany(CHUNK_SIZE)
             if not rows:
                 break
-
             table_rows += len(rows)
             total_rows += len(rows)
 
@@ -247,9 +240,8 @@ def postgres_extraction():
                 buffer,
                 compression="snappy"
             )
-
             object_name = (
-                f"raw/{table}/"
+                f"raw/postgres/{table}/"
                 f"{table}_{datetimestamp}_file{file_number}.parquet"
             )
 
@@ -259,7 +251,6 @@ def postgres_extraction():
                 object_name,
                 buffer
             )
-
             logger.info(
                 f"{table} | file={file_number} | "
                 f"rows={len(rows):,} | "
@@ -302,14 +293,27 @@ def postgres_extraction():
 
 
 
-
-
-
-
 # =====================================================================
 # DATA SOURCE 2: MongoDB
 # =====================================================================
 def mongodb_extraction():
+    """
+    Extract data incrementally from MongoDB collections and store it in MinIO
+    as compressed Parquet files.
+
+    Steps:
+    - Connect to the configured MongoDB database.
+    - Read the last processed ObjectId (watermark) for each collection.
+    - Query only documents newer than the stored watermark.
+    - Process documents in batches for memory-efficient extraction.
+    - Convert each batch to a Parquet table with Snappy compression.
+    - Upload batch files to the appropriate raw/ MongoDB path in MinIO.
+    - Upload any remaining documents that do not fill a complete batch.
+    - Update the collection watermark with the latest extracted ObjectId.
+    - Log per-collection and overall extraction statistics.
+    - Close database connections and release resources.
+    """
+
     start_time = time.time()
 
     mongo_client = MongoClient(os.getenv("MONGODB_URI"))
@@ -321,16 +325,6 @@ def mongodb_extraction():
 
     for collection_name in MONGODB_CONFIG["collections"]:
         logger.info(f"Starting extraction for collection '{collection_name}'")
-        #
-        # Safe rerun (full refresh)
-        #
-        # for obj in minio_client.list_objects(
-        #     bucket,
-        #     prefix=f"raw/{collection_name}/{collection_name}_",
-        #     recursive=True
-        # ):
-        #     minio_client.remove_object(bucket, obj.object_name)
-        
         watermark = _read_watermark(
             minio_client,
             bucket,
@@ -340,7 +334,6 @@ def mongodb_extraction():
         )
 
         collection = database[collection_name]
-        # cursor = collection.find({}, no_cursor_timeout=True).batch_size(CHUNK_SIZE)
 
         query = {}
         if watermark:
@@ -358,10 +351,6 @@ def mongodb_extraction():
         latest_object_id = watermark
 
         for document in cursor:
-            #
-            # Convert ObjectId to string
-            #
-            
             if latest_object_id is None or document["_id"] > ObjectId(latest_object_id):
                 latest_object_id = str(document["_id"])
 
@@ -377,9 +366,8 @@ def mongodb_extraction():
                     buffer,
                     compression="snappy"
                 )
-
                 object_name = (
-                    f"raw/{collection_name}/"
+                    f"raw/mongodb/{collection_name}/"
                     f"{collection_name}_{datetimestamp}_file{file_number}.parquet"
                 )
 
@@ -408,7 +396,6 @@ def mongodb_extraction():
         if batch:
             table = pa.Table.from_pylist(batch)
             buffer = io.BytesIO()
-
             pq.write_table(
                 table,
                 buffer,
@@ -416,17 +403,15 @@ def mongodb_extraction():
             )
 
             object_name = (
-                f"raw/{collection_name}/"
+                f"raw/mongodb/{collection_name}/"
                 f"{collection_name}_{datetimestamp}_file{file_number}.parquet"
             )
-
             upload_to_minio(
                 minio_client,
                 bucket,
                 object_name,
                 buffer
             )
-
             logger.info(
                 f"{collection_name} | "
                 f"file={file_number} | "
@@ -470,6 +455,20 @@ def mongodb_extraction():
 # DATA SOURCE 3: FastAPI
 # =====================================================================
 def api_extraction():
+    """
+    Extract data from the SwiftDrop API and store it in MinIO as Parquet files.
+
+    Workflow:
+    - Read the last processed `updated_since` watermark from MinIO metadata.
+    - Iterate through all configured API endpoints.
+    - Request data from each endpoint, handling pagination where applicable.
+    - Apply the watermark to fetch only new or updated shipment records.
+    - Flatten JSON responses into tabular format using pandas.
+    - Write each batch to a timestamped Parquet file in the raw MinIO layer.
+    - Log extraction progress, file details, and record counts.
+    - Track the latest `updated_at` value across all extracted shipment records.
+    - Update the watermark only if newer data was successfully extracted.
+    """
     watermark = _read_watermark(
         minio_client,
         bucket,
@@ -532,7 +531,7 @@ def api_extraction():
             )
 
             object_name = (
-                f"raw/{table}/"
+                f"raw/api/{table}/"
                 f"{table}_{datetimestamp}_"
                 f"file{file_number}.parquet"
             )
