@@ -4,8 +4,6 @@
 import io
 import logging
 import pandas as pd
-import pyarrow as pa
-import pyarrow.parquet as pq
 from minio.error import S3Error
 from io import BytesIO
 
