@@ -104,18 +104,20 @@ def postgres_extraction():
         cursor.itersize = CHUNK_SIZE
 
         if table == "order_items":
+            last_file_number = 0
             logger.info(
                 "order_items has no updated_at column. Performing full extraction."
             )
             cursor.execute(f"SELECT * FROM {table}")
         else:
-            watermark = read_minio_watermark(
+            watermark, last_file_number = read_minio_watermark(
                 minio_client,
                 bucket,
                 source="postgres",
                 object_name=table,
-                field="updated_at"      
+                field="updated_at"
             )
+
             if watermark:
                 logger.info(
                     f"Incremental extraction using watermark: {watermark}"
@@ -141,8 +143,8 @@ def postgres_extraction():
                     """
                 )
         datetimestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
-
-        file_number = 1
+        
+        file_number = last_file_number + 1
         table_rows = 0
 
         while True:
@@ -170,7 +172,7 @@ def postgres_extraction():
 
             object_name = (
                 f"raw/postgres/{table}/"
-                f"{table}_{datetimestamp}_file{file_number}.parquet"
+                f"{table}_{datetimestamp}_{file_number}.parquet"
             )
 
             upload_to_minio(
@@ -196,10 +198,13 @@ def postgres_extraction():
                 source="postgres",
                 object_name=table,
                 field="updated_at",
-                value=latest_updated_at.isoformat()
+                value=latest_updated_at.isoformat(),
+                file_number=file_number - 1
             )
+
             logger.info(
-                f"Updated watermark for {table}: {latest_updated_at.isoformat()}"
+                f"Updated watermark for {table}: {latest_updated_at.isoformat()} | "
+                f"file_number={file_number - 1}"
             )
 
         logger.info(
@@ -253,13 +258,13 @@ def mongodb_extraction():
 
     for collection_name in MONGODB_CONFIG["collections"]:
         logger.info(f"Starting extraction for collection '{collection_name}'")
-        watermark = read_minio_watermark(
-            minio_client,
-            bucket,
-            source="mongodb",
-            object_name=collection_name,
-            field="last_loaded_object_id"
-        )
+        watermark, last_file_number = read_minio_watermark(
+                minio_client,
+                bucket,
+                source="mongodb",
+                object_name=collection_name,
+                field="last_loaded_object_id"
+            )
 
         collection = database[collection_name]
 
@@ -271,9 +276,8 @@ def mongodb_extraction():
             .sort("_id", 1)
             .batch_size(CHUNK_SIZE)
         )
-
+        file_number = last_file_number + 1
         datetimestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
-        file_number = 1
         collection_documents = 0
         batch = []
         latest_object_id = watermark
@@ -290,7 +294,7 @@ def mongodb_extraction():
 
                 object_name = (
                     f"raw/mongodb/{collection_name}/"
-                    f"{collection_name}_{datetimestamp}_file{file_number}.parquet"
+                    f"{collection_name}_{datetimestamp}_{file_number}.parquet"
                 )
 
                 upload_to_minio(
@@ -320,7 +324,7 @@ def mongodb_extraction():
 
             object_name = (
                 f"raw/mongodb/{collection_name}/"
-                f"{collection_name}_{datetimestamp}_file{file_number}.parquet"
+                f"{collection_name}_{datetimestamp}_{file_number}.parquet"
             )
             upload_to_minio(
                 minio_client,
@@ -346,8 +350,10 @@ def mongodb_extraction():
                 source="mongodb",
                 object_name=collection_name,
                 field="last_loaded_object_id",
-                value=latest_object_id
+                value=latest_object_id,
+                file_number=file_number - 1
             )
+
         cursor.close()
         logger.info(
             f"Completed collection '{collection_name}' | "
@@ -385,30 +391,27 @@ def api_extraction():
     - Track the latest `updated_at` value across all extracted shipment records.
     - Update the watermark only if newer data was successfully extracted.
     """
-    watermark = read_minio_watermark(
-        minio_client,
-        bucket,
-        source="fast_api",
-        object_name="shipments",
-        field="updated_since"
-    )
-
     base_url = os.getenv("MOCK_API_BASE_URL").rstrip("/")
-
     datetimestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
 
     logger.info("=" * 80)
     logger.info("Starting SwiftDrop API extraction")
-    logger.info(f"Watermark: {watermark}")
-
-    latest_updated_at = watermark
-
+    
     for endpoint in API_CONFIG["endpoints"]:
         table = endpoint["table"]
         logger.info(f"Extracting table: {table}")
 
+        watermark, last_file_number = read_minio_watermark(
+            minio_client,
+            bucket,
+            source="fast_api",
+            object_name="shipments",
+            field="updated_since"
+        )
+        logger.info(f"Watermark: {watermark}")
+        latest_updated_at = watermark
+        file_number = last_file_number + 1
         page = 1
-        file_number = 1
         total_records = 0
 
         while True:
@@ -432,6 +435,7 @@ def api_extraction():
             if endpoint["paginated"]:
                 records = payload["shipments"]
             else:
+                file_number = 1
                 records = payload
 
             if not records:
@@ -439,12 +443,10 @@ def api_extraction():
                 break
 
             dataframe, parquet_buffer = records_to_parquet_buffer(records)
-
-
             object_name = (
                 f"raw/api/{table}/"
                 f"{table}_{datetimestamp}_"
-                f"file{file_number}.parquet"
+                f"{file_number}.parquet"
             )
 
             upload_to_minio(
@@ -490,12 +492,12 @@ def api_extraction():
             source="fast_api",
             object_name="shipments",
             field="updated_since",
-            value=latest_updated_at
+            value=latest_updated_at,
+            file_number=file_number - 1
         )
         logger.info(
             f"Updated watermark to {latest_updated_at}"
         )
-
     logger.info("SwiftDrop API extraction completed")
     logger.info("=" * 80)
 
