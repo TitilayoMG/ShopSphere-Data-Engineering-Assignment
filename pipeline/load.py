@@ -2,10 +2,18 @@
 # Import: Standard Libraries
 # -------------------------
 import io
+import csv
 import logging
 import pandas as pd
 
-from utils import get_minio_client, get_postgres_connection
+from utils import (get_minio_client, 
+                   get_postgres_connection,
+                   start_pipeline_run,
+                   mark_pipeline_fail,
+                   mark_pipeline_success,
+                   read_pipeline_runs,
+                   update_pipeline_watermark
+)
 
 # -------------------------
 # LOGGING
@@ -20,96 +28,11 @@ logger = logging.getLogger(__name__)
 # Creating Connections
 # -------------------------
 client, bucket = get_minio_client()
-conn = get_postgres_connection("WAREHOUSE")
-
-# ============================================================================
-# Pipeline Run Helpers
-# ============================================================================
-def start_pipeline_run(cursor, pipeline_name, source_name, watermark_value=None):
-    """
-    
-    """
-    cursor.execute("""
-        INSERT INTO control.pipeline_runs
-        (pipeline_name, source_name, started_at, status,
-         records_extracted, records_loaded, watermark_value)
-        VALUES (%s,%s,NOW(),'started',0,0,%s)
-        RETURNING run_id
-    """, (pipeline_name, source_name, watermark_value))
-    return cursor.fetchone()[0]
-
-
-def mark_pipeline_success(cursor, run_id, records_loaded):
-    """
-    Mark a pipeline run as successful.
-    conn : psycopg2.connection
-    run_id : int
-    """
-    cursor.execute("""
-        UPDATE control.pipeline_runs
-        SET completed_at=NOW(),
-            status='success',
-            records_loaded=%s
-        WHERE run_id=%s
-    """, (records_loaded, run_id))
-
-
-def mark_pipeline_fail(cursor, run_id, error_message):
-    """
-    Mark a pipeline run as failed.
-    """
-    cursor.execute("""
-        UPDATE control.pipeline_runs
-        SET completed_at=NOW(),
-            status='failed',
-            error_message=%s
-        WHERE run_id=%s
-    """, (str(error_message), run_id))
-
-
-# def read_pipeline_watermark(cursor, pipeline_name, source_name):
-#     cursor.execute("""
-#         SELECT watermark_value
-#         FROM control.pipeline_watermarks
-#         WHERE pipeline_name=%s
-#           AND source_name=%s
-#     """, (pipeline_name, source_name))
-#     row = cursor.fetchone()
-#     return row[0] if row else None
-
-def read_pipeline_watermark(cursor, pipeline_name, source_name, watermark):
-    cursor.execute("""
-        SELECT 1
-        FROM control.pipeline_runs
-        WHERE pipeline_name = %s
-          AND source_name = %s
-          AND watermark_value = %s
-          AND status = 'success'
-        LIMIT 1
-    """, (pipeline_name, source_name, watermark))
-
-    return cursor.fetchone() is not None
-
-
-def update_pipeline_watermark(cursor, pipeline_name, source_name, watermark_column, watermark_value):
-    cursor.execute("""
-        INSERT INTO control.pipeline_watermarks
-        (pipeline_name, source_name, watermark_column,
-         watermark_value, updated_at)
-        VALUES (%s,%s,%s,%s,NOW())
-        ON CONFLICT (pipeline_name, source_name)
-        DO UPDATE SET
-            watermark_column = EXCLUDED.watermark_column,
-            watermark_value = EXCLUDED.watermark_value,
-            updated_at = NOW();
-    """, (pipeline_name, source_name, watermark_column, watermark_value))
 
 
 # ============================================================================
 # Load PostgreSQL Tables
 # ============================================================================
-import csv
-import io
 LOAD_ORDER = [
     "customers",
     "products",
@@ -133,6 +56,8 @@ def load_postgres():
     7. Complete pipeline run.
     8. Roll back on failure.
     """
+    conn = get_postgres_connection("WAREHOUSE")
+
     cursor = conn.cursor()
 
     try:
@@ -145,17 +70,15 @@ def load_postgres():
 
             for obj in objects:
                 object_name = obj.object_name
-
                 if object_name.endswith("/") or not object_name.endswith(".parquet"):
                     continue
 
                 parts = object_name.split("/")
-                if len(parts) < 4:
-                    continue
+                # if len(parts) < 4:
+                #     continue
 
                 table_name = parts[2]
                 filename = parts[-1]
-
                 pipeline_name = table_name
                 source_name = "postgres"
 
@@ -166,7 +89,7 @@ def load_postgres():
 
                 watermark = filename.replace(".parquet", "").replace(f"{table_name}_", "")
 
-                already_processed = read_pipeline_watermark(
+                already_processed = read_pipeline_runs(
                     cursor,
                     pipeline_name,
                     source_name,
@@ -260,6 +183,10 @@ def load_postgres():
                         f"Failed loading {filename}"
                     )
                     raise
+    except Exception:
+        conn.rollback()
+        logger.exception("API load failed")
+        raise
 
     finally:
         cursor.close()
@@ -298,14 +225,11 @@ def load_mongodb():
             )
 
             for obj in objects:
-
                 object_name = obj.object_name
-
                 if object_name.endswith("/") or not object_name.endswith(".parquet"):
                     continue
 
                 parts = object_name.split("/")
-
                 filename = parts[-1]
                 pipeline_name = table_name
                 source_name = "mongodb"
@@ -313,8 +237,7 @@ def load_mongodb():
                 logger.info(f"Processing {filename}")
 
                 watermark = filename
-
-                already_processed = read_pipeline_watermark(
+                already_processed = read_pipeline_runs(
                     cursor,
                     pipeline_name,
                     source_name,
@@ -331,29 +254,21 @@ def load_mongodb():
                     source_name,
                     watermark,
                 )
-
                 conn.commit()
 
                 try:
-                    response = client.get_object(
-                        bucket,
-                        object_name,
-                    )
-
+                    response = client.get_object(bucket, object_name)
                     parquet_bytes = io.BytesIO(response.read())
 
                     response.close()
                     response.release_conn()
 
                     df = pd.read_parquet(parquet_bytes)
-
                     logger.info(
                         f"Loading {len(df)} rows into public.{table_name}"
-                        f"customer_sessions columns are {df.columns}"
                     )
 
                     csv_buffer = io.StringIO()
-
                     df.to_csv(
                         csv_buffer,
                         index=False,
@@ -363,9 +278,7 @@ def load_mongodb():
                     )
 
                     csv_buffer.seek(0)
-
                     columns = ", ".join(df.columns)
-
                     cursor.copy_expert(
                         f"""
                         COPY public.{table_name}
@@ -392,7 +305,6 @@ def load_mongodb():
                         "filename",
                         watermark,
                     )
-
                     conn.commit()
 
                     logger.info(
@@ -401,21 +313,14 @@ def load_mongodb():
                     )
 
                 except Exception as e:
-
                     conn.rollback()
-
                     mark_pipeline_fail(
                         cursor,
                         run_id,
                         str(e),
                     )
-
                     conn.commit()
-
-                    logger.exception(
-                        f"Failed loading {filename}"
-                    )
-
+                    logger.exception(f"Failed loading {filename}")
                     raise
 
     finally:
@@ -423,7 +328,137 @@ def load_mongodb():
 
 
 
+def load_api():
+    """
+    Load processed API parquet files into PostgreSQL warehouse.
+    Load order:
+    1. carriers
+    2. shipments
+    Uses PostgreSQL COPY for bulk loading.
+    """
+    LOAD_ORDER = [
+        "carriers",
+        "shipments",
+    ]
+    conn = get_postgres_connection("WAREHOUSE")
+    cursor = conn.cursor()
+    
+    try:
+        for table_name in LOAD_ORDER:
+            logger.info(f"Loading API table '{table_name}'")
+            objects = client.list_objects(
+                bucket,
+                prefix=f"processed/api/{table_name}/",
+                recursive=True,
+            )
+
+            for obj in objects:
+                object_name = obj.object_name
+                if object_name.endswith("/") or not object_name.endswith(".parquet"):
+                    continue
+
+                parts = object_name.split("/")
+                filename = parts[-1]
+                pipeline_name = table_name
+                source_name = "api"
+
+                logger.info(f"Processing {filename}")
+
+                watermark = filename
+                already_processed = read_pipeline_runs(
+                    cursor,
+                    pipeline_name,
+                    source_name,
+                    watermark,
+                )
+
+                if already_processed:
+                    logger.info(f"Skipping previously loaded file: {filename}")
+                    continue
+
+                run_id = start_pipeline_run(
+                    cursor,
+                    pipeline_name,
+                    source_name,
+                    watermark,
+                )
+                conn.commit()
+
+                try:
+                    response = client.get_object(bucket, object_name)
+                    parquet_bytes = io.BytesIO(response.read())
+
+                    response.close()
+                    response.release_conn()
+
+                    df = pd.read_parquet(parquet_bytes)
+                    if df.empty:
+                        logger.warning(
+                            f"Skipping empty file {filename}"
+                        )
+                        continue
+                    logger.info(
+                        f"Loading {len(df)} rows into public.{table_name}"
+                    )
+
+                    csv_buffer = io.StringIO()
+                    df.to_csv(
+                        csv_buffer,
+                        index=False,
+                        header=False,
+                        quoting=csv.QUOTE_MINIMAL,
+                        na_rep="\\N",
+                    )
+                    
+                    csv_buffer.seek(0)
+                    columns = ", ".join(df.columns)
+                    cursor.copy_expert(
+                        f"""
+                        COPY public.{table_name}
+                        ({columns})
+                        FROM STDIN
+                        WITH (
+                            FORMAT CSV,
+                            NULL '\\N'
+                        )
+                        """,
+                        csv_buffer,
+                    )
+
+                    mark_pipeline_success(
+                        cursor,
+                        run_id,
+                        len(df),
+                    )
+
+                    update_pipeline_watermark(
+                        cursor,
+                        pipeline_name,
+                        source_name,
+                        "filename",
+                        watermark,
+                    )
+                    conn.commit()
+
+                    logger.info(
+                        f"Successfully loaded {len(df)} rows "
+                        f"from {filename} into {table_name}"
+                    )
+
+                except Exception:
+                    conn.rollback()
+                    logger.exception("API load failed")
+                    raise
+
+    finally:
+        cursor.close()
+
+    logger.info(
+        "API tables loaded successfully"
+    )
+
 
 if __name__ == "__main__":
     load_postgres()
-    # load_mongodb()
+    load_mongodb()
+    load_api()

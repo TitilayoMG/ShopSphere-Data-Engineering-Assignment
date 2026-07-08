@@ -89,22 +89,6 @@ def get_postgres_connection(prefix: str = "WAREHOUSE"):
     )
 
 
-# def download_dataframe(object_name: str):
-#     """
-#     Download a Parquet file from MinIO.
-#     Returns
-#     -------
-#     pandas.DataFrame
-#     """
-#     response = client.get_object(bucket, object_name)
-
-#     try:
-#         data = io.BytesIO(response.read())
-#         return pd.read_parquet(data)
-#     finally:
-#         response.close()
-#         response.release_conn()
-
 # ============================================================================
 # Parquet Utilities
 # ============================================================================
@@ -119,36 +103,9 @@ def parquet_buffer_to_dataframe(buffer):
     buffer.seek(0)
     return pd.read_parquet(buffer)
 
-
 # ============================================================================
-# Minio Watermark
+# Minio Watermark Utilities
 # ============================================================================
-# def read_minio_watermark(client, bucket, source, object_name, field):
-#     """
-#     Reads the last processed watermark value for a specific source, object, and field
-#     from the watermark metadata file stored in MinIO. 
-#     Returns the stored watermark if it exists, 
-#     returns None if the metadata file is missing, and raise
-#     any unexpected storage errors.
-#     """
-#     watermark_file = "metadata/shopsphere_watermark.json"
-#     try:
-#         response = client.get_object(bucket, watermark_file)
-#         data = json.loads(response.read().decode("utf-8"))
-#         response.close()
-#         response.release_conn()
-
-#         return (
-#             data
-#             .get(source, {})
-#             .get(object_name, {})
-#             .get(field)
-#         )
-
-#     except Exception as e:
-#         logger.exception(f"No such key: {e}")
-#         raise
-
 def read_minio_watermark(client, bucket, source, object_name, field):
     """
     Read the watermark metadata for a specific source and object from the
@@ -194,34 +151,6 @@ def read_minio_watermark(client, bucket, source, object_name, field):
         logger.exception(f"Failed to read watermark file: {e}")
         raise
 
-# def write_minio_watermark(client, bucket, source, object_name, field, value):
-#     """
-#     Update the pipeline watermark metadata by loading the existing watermark file,
-#     modifying the specified tracking field for a given data source and object,
-#     then writing the updated JSON back to MinIO. 
-#     """
-#     watermark_file = "metadata/shopsphere_watermark.json"
-#     try:
-#         response = client.get_object(bucket, watermark_file)
-#         data = json.loads(response.read().decode("utf-8"))
-#         response.close()
-#         response.release_conn()
-
-#     except Exception as e:
-#         logger.exception(f"No such key: {e}")
-#         raise
-
-#     data[source][object_name][field] = value
-#     buffer = io.BytesIO(
-#         json.dumps(data, indent=4).encode("utf-8")
-#     )
-#     upload_to_minio(
-#         client=client,
-#         bucket=bucket,
-#         object_name=watermark_file,
-#         buffer=buffer,
-#         content_type="application/json"
-#     )
 
 def write_minio_watermark(
     client,
@@ -272,6 +201,78 @@ def write_minio_watermark(
         logger.exception(f"Failed to update watermark: {e}")
         raise
 
+
+# ============================================================================
+# Pipeline Run Helpers
+# ============================================================================
+def start_pipeline_run(cursor, pipeline_name, source_name, watermark_value=None):
+    """
+    
+    """
+    cursor.execute("""
+        INSERT INTO control.pipeline_runs
+        (pipeline_name, source_name, started_at, status,
+         records_extracted, records_loaded, watermark_value)
+        VALUES (%s,%s,NOW(),'started',0,0,%s)
+        RETURNING run_id
+    """, (pipeline_name, source_name, watermark_value))
+    return cursor.fetchone()[0]
+
+
+def mark_pipeline_success(cursor, run_id, records_loaded):
+    """
+    Mark a pipeline run as successful.
+    conn : psycopg2.connection
+    run_id : int
+    """
+    cursor.execute("""
+        UPDATE control.pipeline_runs
+        SET completed_at=NOW(),
+            status='success',
+            records_loaded=%s
+        WHERE run_id=%s
+    """, (records_loaded, run_id))
+
+
+def mark_pipeline_fail(cursor, run_id, error_message):
+    """
+    Mark a pipeline run as failed.
+    """
+    cursor.execute("""
+        UPDATE control.pipeline_runs
+        SET completed_at=NOW(),
+            status='failed',
+            error_message=%s
+        WHERE run_id=%s
+    """, (str(error_message), run_id))
+
+
+def read_pipeline_runs(cursor, pipeline_name, source_name, watermark):
+    cursor.execute("""
+        SELECT 1
+        FROM control.pipeline_runs
+        WHERE pipeline_name = %s
+          AND source_name = %s
+          AND watermark_value = %s
+          AND status = 'success'
+        LIMIT 1
+    """, (pipeline_name, source_name, watermark))
+
+    return cursor.fetchone() is not None
+
+
+def update_pipeline_watermark(cursor, pipeline_name, source_name, watermark_column, watermark_value):
+    cursor.execute("""
+        INSERT INTO control.pipeline_watermarks
+        (pipeline_name, source_name, watermark_column,
+         watermark_value, updated_at)
+        VALUES (%s,%s,%s,%s,NOW())
+        ON CONFLICT (pipeline_name, source_name)
+        DO UPDATE SET
+            watermark_column = EXCLUDED.watermark_column,
+            watermark_value = EXCLUDED.watermark_value,
+            updated_at = NOW();
+    """, (pipeline_name, source_name, watermark_column, watermark_value))
 
 
 

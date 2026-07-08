@@ -110,3 +110,43 @@ CREATE TABLE product_reviews (
     helpful_votes       INTEGER,
     PRIMARY KEY (_id, product_id)
 );
+
+
+
+-- API Tables
+CREATE TABLE shipments (
+    shipment_id VARCHAR(120) NOT NULL,
+    order_id INTEGER NOT NULL,
+    carrier_id VARCHAR(120) NOT NULL,
+    tracking_number VARCHAR(100) NOT NULL,
+    shipment_status VARCHAR(50) NOT NULL,
+    shipped_at TIMESTAMPTZ,
+    estimated_delivery_at TIMESTAMPTZ,
+    delivered_at TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ NOT NULL,
+    delivery_address_street VARCHAR(200),
+    delivery_address_city VARCHAR(100),
+    delivery_address_state VARCHAR(100),
+    delivery_address_country VARCHAR(100),
+    delivery_address_postal_code VARCHAR(30),
+    event_type VARCHAR(50),
+    event_time TIMESTAMPTZ,
+    location VARCHAR(100),
+    notes TEXT,
+    PRIMARY KEY (shipment_id, event_time)
+);
+CREATE INDEX idx_shipments_order_id ON shipments(order_id);
+CREATE INDEX idx_shipments_carrier_id ON shipments(carrier_id);
+CREATE INDEX idx_shipments_status ON shipments(shipment_status);
+CREATE INDEX idx_shipments_event_time ON shipments(event_time);
+
+
+--carriers
+CREATE TABLE carriers (
+    carrier_id VARCHAR(120) NOT NULL REFERENCES carriers(carrier_id),
+    carrier_name VARCHAR(120) NOT NULL,
+    service_level VARCHAR(50) NOT NULL,
+    support_phone VARCHAR(40)
+);
+
+CREATE INDEX idx_carriers_name ON carriers(carrier_name);

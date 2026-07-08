@@ -391,10 +391,7 @@ def api_extraction():
     - Track the latest `updated_at` value across all extracted shipment records.
     - Update the watermark only if newer data was successfully extracted.
     """
-    
-
     base_url = os.getenv("MOCK_API_BASE_URL").rstrip("/")
-
     datetimestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
 
     logger.info("=" * 80)
@@ -446,8 +443,6 @@ def api_extraction():
                 break
 
             dataframe, parquet_buffer = records_to_parquet_buffer(records)
-
-
             object_name = (
                 f"raw/api/{table}/"
                 f"{table}_{datetimestamp}_"
@@ -503,7 +498,6 @@ def api_extraction():
         logger.info(
             f"Updated watermark to {latest_updated_at}"
         )
-
     logger.info("SwiftDrop API extraction completed")
     logger.info("=" * 80)
 

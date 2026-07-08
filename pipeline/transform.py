@@ -4,7 +4,6 @@
 import io
 import logging
 import pandas as pd
-from minio.error import S3Error
 from io import BytesIO
 
 from utils import get_minio_client, upload_to_minio
@@ -125,9 +124,6 @@ def transform_postgres():
             f"Deleted raw files: {deleted_files}"
         )
         logger.info("=" * 60)
-
-    except S3Error as e:
-        logger.exception(f"MinIO error: {e}")
 
     except Exception as e:
         logger.exception(f"Unexpected error: {e}")
@@ -381,6 +377,7 @@ def transform_api():
             logger.info(
                 f"Loaded {len(df)} records "
                 f"({len(df.columns)} columns)"
+                f"({df.columns} columns)"
             )
             # -----------------------------
             # SHIPMENTS
