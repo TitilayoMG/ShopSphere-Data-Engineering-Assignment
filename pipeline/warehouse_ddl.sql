@@ -1,5 +1,5 @@
 
-CREATE TABLE dim_customers (
+CREATE TABLE customers (
     customer_id INTEGER PRIMARY KEY,
     first_name VARCHAR(80) NOT NULL,
     last_name VARCHAR(80) NOT NULL,
@@ -11,11 +11,11 @@ CREATE TABLE dim_customers (
     created_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL
 );
-CREATE INDEX idx_dim_customers_email ON dim_customers(email);
-CREATE INDEX idx_dim_customers_state_city ON dim_customers(state, city);
+CREATE INDEX idx_customers_email ON customers(email);
+CREATE INDEX idx_customers_state_city ON customers(state, city);
 
 
-CREATE TABLE dim_products (
+CREATE TABLE products (
     product_id INTEGER PRIMARY KEY,
     product_name VARCHAR(160) NOT NULL,
     category VARCHAR(80) NOT NULL,
@@ -26,13 +26,13 @@ CREATE TABLE dim_products (
     created_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL
 );
-CREATE INDEX idx_dim_products_category ON dim_products(category);
-CREATE INDEX idx_dim_products_brand ON dim_products(brand);
+CREATE INDEX idx_products_category ON products(category);
+CREATE INDEX idx_products_brand ON products(brand);
 
 
-CREATE TABLE fact_orders (
+CREATE TABLE orders (
     order_id INTEGER PRIMARY KEY,
-    customer_id INTEGER NOT NULL REFERENCES dim_customers(customer_id),
+    customer_id INTEGER NOT NULL REFERENCES customers(customer_id),
     order_status VARCHAR(30) NOT NULL,
     order_date TIMESTAMPTZ NOT NULL,
     currency CHAR(3) NOT NULL,
@@ -42,27 +42,27 @@ CREATE TABLE fact_orders (
     total_amount NUMERIC(12,2) NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL
 );
-CREATE INDEX idx_fact_orders_customer ON fact_orders(customer_id);
-CREATE INDEX idx_fact_orders_date ON fact_orders(order_date);
-CREATE INDEX idx_fact_orders_status ON fact_orders(order_status);
+CREATE INDEX idx_orders_customer ON orders(customer_id);
+CREATE INDEX idx_orders_date ON orders(order_date);
+CREATE INDEX idx_orders_status ON orders(order_status);
 
 
-CREATE TABLE fact_order_items (
+CREATE TABLE order_items (
     order_item_id INTEGER PRIMARY KEY,
-    order_id INTEGER NOT NULL REFERENCES fact_orders(order_id),
-    product_id INTEGER NOT NULL REFERENCES dim_products(product_id),
+    order_id INTEGER NOT NULL REFERENCES orders(order_id),
+    product_id INTEGER NOT NULL REFERENCES products(product_id),
     quantity INTEGER NOT NULL CHECK (quantity > 0),
     unit_price NUMERIC(12,2) NOT NULL,
     discount_amount NUMERIC(12,2) NOT NULL,
     line_total NUMERIC(12,2) NOT NULL
 );
-CREATE INDEX idx_fact_order_items_order ON fact_order_items(order_id);
-CREATE INDEX idx_fact_order_items_product ON fact_order_items(product_id);
+CREATE INDEX idx_order_items_order ON order_items(order_id);
+CREATE INDEX idx_order_items_product ON order_items(product_id);
 
 
-CREATE TABLE fact_payments (
+CREATE TABLE payments (
     payment_id INTEGER PRIMARY KEY,
-    order_id INTEGER NOT NULL REFERENCES fact_orders(order_id),
+    order_id INTEGER NOT NULL REFERENCES orders(order_id),
     payment_method VARCHAR(40) NOT NULL,
     payment_status VARCHAR(30) NOT NULL,
     amount NUMERIC(12,2) NOT NULL,
@@ -71,5 +71,42 @@ CREATE TABLE fact_payments (
     updated_at TIMESTAMPTZ NOT NULL
 );
 
-CREATE INDEX idx_fact_payments_order ON fact_payments(order_id);
-CREATE INDEX idx_fact_payments_status ON fact_payments(payment_status);
+CREATE INDEX idx_payments_order ON payments(order_id);
+CREATE INDEX idx_payments_status ON payments(payment_status);
+
+
+--Mongodb customer_sessions
+CREATE TABLE customer_sessions (
+    _id VARCHAR(24),
+    session_id VARCHAR(50),
+    customer_id INTEGER,
+    started_at TIMESTAMP,
+    ended_at TIMESTAMP,
+    browser VARCHAR(50),
+    location_city VARCHAR(100),
+    location_state VARCHAR(100),
+    location_country VARCHAR(100),
+    device_type VARCHAR(50),
+    device_os VARCHAR(100),
+    event_type VARCHAR(100),
+    event_time TIMESTAMP,
+    product_id INTEGER,
+    search_term VARCHAR(255),
+    quantity INTEGER,
+    page_url VARCHAR(255),
+    PRIMARY KEY (_id, event_type)
+);
+
+CREATE TABLE product_reviews (
+    _id                 VARCHAR(24),
+    review_id           VARCHAR(50) NOT NULL,
+    product_id          INTEGER NOT NULL,
+    customer_id         INTEGER NOT NULL,
+    rating              INTEGER,
+    title               VARCHAR(255),
+    review_text         TEXT,
+    verified_purchase   BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at          TIMESTAMP,
+    helpful_votes       INTEGER,
+    PRIMARY KEY (_id, product_id)
+);

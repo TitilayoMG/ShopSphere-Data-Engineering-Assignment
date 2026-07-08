@@ -47,6 +47,7 @@ def transform_postgres():
         )
 
         processed_files = 0
+        deleted_files = 0
         for obj in objects:
             object_name = obj.object_name
             # Ignore directories and non-parquet files
@@ -89,18 +90,12 @@ def transform_postgres():
                         "Copying unchanged."
                     )
 
-                # Convert dataframe to parquet
-                # output_buffer = io.BytesIO()
-                # table = pa.Table.from_pandas(df)
-                # pq.write_table(table, output_buffer)
-
                 output_buffer = io.BytesIO()
                 df.to_parquet(
                     output_buffer,
                     engine="pyarrow",
                     index=False,
                 )
-
                 # Destination path: processed/file.parquet
                 filename = parts[-1]
                 destination = f"processed/postgres/{table_name}/{filename}"
@@ -112,9 +107,12 @@ def transform_postgres():
                     buffer=output_buffer,
                     content_type="application/octet-stream"
                 )
-                logger.info(f"Saved transformed file -> {destination}")
-
+                
                 processed_files += 1
+
+                # Delete the original raw file after successful upload
+                client.remove_object(bucket, object_name)
+                deleted_files += 1
 
             except Exception as e:
                 logger.exception(
@@ -123,7 +121,8 @@ def transform_postgres():
         logger.info("=" * 60)
         logger.info(
             f"PostgreSQL transformation completed. "
-            f"{processed_files} file(s) processed."
+            f"{processed_files} file(s) processed. "
+            f"Deleted raw files: {deleted_files}"
         )
         logger.info("=" * 60)
 
@@ -158,6 +157,8 @@ def transform_mongodb():
             prefix="raw/mongodb/",
             recursive=True,
         )
+        processed_files = 0
+        deleted_files = 0
         for obj in objects:
             object_name = obj.object_name
             if object_name.endswith("/") or not object_name.endswith(".parquet"):
@@ -194,7 +195,7 @@ def transform_mongodb():
                 # normalize nested fields
                 event_df = pd.json_normalize(df["events"])
 
-                df = df.drop(columns=["events"])
+                df = df.drop(columns=["events", "device"])
                 df = pd.concat(
                     [
                         df.reset_index(drop=True),
@@ -297,6 +298,10 @@ def transform_mongodb():
                 buffer=output_buffer,
                 content_type="application/octet-stream"
             )
+            client.remove_object(bucket, object_name)
+            processed_files += 1
+            deleted_files += 1
+
             logger.info(
                 f"Successfully uploaded "
                 f"{len(df)} records "
@@ -304,6 +309,10 @@ def transform_mongodb():
                 f"to '{destination}'"
             )
         logger.info("Completed MongoDB transformation")
+        logger.info(
+            f"Processed files: {processed_files} | "
+            f"Deleted files: {deleted_files}"
+        )
     
     except Exception as e:
         logger.exception(f"MongoDB transformation failed: {e}")
@@ -344,6 +353,8 @@ def transform_api():
             prefix="raw/api/",
             recursive=True,
         )
+        processed_files = 0
+        deleted_files = 0
         for obj in objects:
             object_name = obj.object_name
 
@@ -471,11 +482,18 @@ def transform_api():
                 buffer=output_buffer,
                 content_type="application/octet-stream"
             )
+            client.remove_object(bucket, object_name)
+            processed_files += 1
+            deleted_files += 1
             logger.info(
                 f"Uploaded '{destination}' "
                 f"({len(df)} records, {len(df.columns)} columns)"
             )
         logger.info("Completed API transformation")
+        logger.info(
+            f"Processed files: {processed_files} | "
+            f"Deleted files: {deleted_files}"
+        )
 
     except Exception as e:
         logger.exception(f"API transformation failed: {e}")

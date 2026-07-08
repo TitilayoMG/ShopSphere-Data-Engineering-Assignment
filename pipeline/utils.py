@@ -123,62 +123,154 @@ def parquet_buffer_to_dataframe(buffer):
 # ============================================================================
 # Minio Watermark
 # ============================================================================
+# def read_minio_watermark(client, bucket, source, object_name, field):
+#     """
+#     Reads the last processed watermark value for a specific source, object, and field
+#     from the watermark metadata file stored in MinIO. 
+#     Returns the stored watermark if it exists, 
+#     returns None if the metadata file is missing, and raise
+#     any unexpected storage errors.
+#     """
+#     watermark_file = "metadata/shopsphere_watermark.json"
+#     try:
+#         response = client.get_object(bucket, watermark_file)
+#         data = json.loads(response.read().decode("utf-8"))
+#         response.close()
+#         response.release_conn()
+
+#         return (
+#             data
+#             .get(source, {})
+#             .get(object_name, {})
+#             .get(field)
+#         )
+
+#     except Exception as e:
+#         logger.exception(f"No such key: {e}")
+#         raise
+
 def read_minio_watermark(client, bucket, source, object_name, field):
     """
-    Reads the last processed watermark value for a specific source, object, and field
-    from the watermark metadata file stored in MinIO. 
-    Returns the stored watermark if it exists, 
-    returns None if the metadata file is missing, and raise
-    any unexpected storage errors.
+    Read the watermark metadata for a specific source and object from the
+    MinIO watermark file.
+
+    Args:
+        client: MinIO client.
+        bucket: MinIO bucket name.
+        source: Data source (e.g. postgres, fast_api, mongodb).
+        object_name: Table or collection name.
+        field: Name of the watermark field
+               (e.g. updated_at, updated_since, last_loaded_object_id).
+
+    Returns:
+        tuple:
+            (
+                watermark_value,
+                last_file_number
+            )
+
+        Returns (None, None) if the metadata does not exist.
     """
     watermark_file = "metadata/shopsphere_watermark.json"
+
     try:
         response = client.get_object(bucket, watermark_file)
         data = json.loads(response.read().decode("utf-8"))
         response.close()
         response.release_conn()
 
-        return (
+        metadata = (
             data
             .get(source, {})
             .get(object_name, {})
-            .get(field)
+        )
+
+        return (
+            metadata.get(field),
+            metadata.get("file_number")
         )
 
     except Exception as e:
-        logger.exception(f"No such key: {e}")
+        logger.exception(f"Failed to read watermark file: {e}")
         raise
 
-def write_minio_watermark(client, bucket, source, object_name, field, value):
+# def write_minio_watermark(client, bucket, source, object_name, field, value):
+#     """
+#     Update the pipeline watermark metadata by loading the existing watermark file,
+#     modifying the specified tracking field for a given data source and object,
+#     then writing the updated JSON back to MinIO. 
+#     """
+#     watermark_file = "metadata/shopsphere_watermark.json"
+#     try:
+#         response = client.get_object(bucket, watermark_file)
+#         data = json.loads(response.read().decode("utf-8"))
+#         response.close()
+#         response.release_conn()
+
+#     except Exception as e:
+#         logger.exception(f"No such key: {e}")
+#         raise
+
+#     data[source][object_name][field] = value
+#     buffer = io.BytesIO(
+#         json.dumps(data, indent=4).encode("utf-8")
+#     )
+#     upload_to_minio(
+#         client=client,
+#         bucket=bucket,
+#         object_name=watermark_file,
+#         buffer=buffer,
+#         content_type="application/json"
+#     )
+
+def write_minio_watermark(
+    client,
+    bucket,
+    source,
+    object_name,
+    field,
+    value,
+    file_number
+):
     """
-    Update the pipeline watermark metadata by loading the existing watermark file,
-    modifying the specified tracking field for a given data source and object,
-    then writing the updated JSON back to MinIO. 
+    Update the watermark metadata for a specific source and object in MinIO.
     """
     watermark_file = "metadata/shopsphere_watermark.json"
+
     try:
-        response = client.get_object(bucket, watermark_file)
-        data = json.loads(response.read().decode("utf-8"))
-        response.close()
-        response.release_conn()
+        try:
+            response = client.get_object(bucket, watermark_file)
+            data = json.loads(response.read().decode("utf-8"))
+            response.close()
+            response.release_conn()
+        except Exception:
+            data = {}
+
+        data.setdefault(source, {})
+        data[source].setdefault(object_name, {})
+
+        data[source][object_name][field] = value
+        data[source][object_name]["file_number"] = file_number
+
+        buffer = io.BytesIO(
+            json.dumps(data, indent=4).encode("utf-8")
+        )
+
+        upload_to_minio(
+            client=client,
+            bucket=bucket,
+            object_name=watermark_file,
+            buffer=buffer,
+            content_type="application/json"
+        )
+
+        logger.info(
+            f"Updated watermark for {source}/{object_name}"
+        )
 
     except Exception as e:
-        logger.exception(f"No such key: {e}")
+        logger.exception(f"Failed to update watermark: {e}")
         raise
-
-    data[source][object_name][field] = value
-    buffer = io.BytesIO(
-        json.dumps(data, indent=4).encode("utf-8")
-    )
-    upload_to_minio(
-        client=client,
-        bucket=bucket,
-        object_name=watermark_file,
-        buffer=buffer,
-        content_type="application/json"
-    )
-
-
 
 
 
