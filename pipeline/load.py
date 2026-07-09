@@ -57,7 +57,6 @@ def load_postgres():
     8. Roll back on failure.
     """
     conn = get_postgres_connection("WAREHOUSE")
-
     cursor = conn.cursor()
 
     try:
@@ -116,9 +115,7 @@ def load_postgres():
 
                     df = pd.read_parquet(parquet_bytes)
 
-                    logger.info(
-                        f"Loading {len(df)} rows into shopsphere_warehouse.{table_name}"
-                    )
+                    logger.info(f"Loading {len(df)} rows into shopsphere_warehouse.{table_name}")
 
                     # Convert DataFrame to CSV in memory
                     csv_buffer = io.StringIO()
@@ -161,27 +158,20 @@ def load_postgres():
                         "file_timestamp",
                         watermark
                     )
-
                     conn.commit()
 
-                    logger.info(
-                        f"Successfully loaded {len(df)} rows from {filename} into {table_name}"
-                    )
+                    logger.info(f"Successfully loaded {len(df)} rows from {filename} into {table_name}")
 
                 except Exception as e:
                     conn.rollback()
-
                     mark_pipeline_fail(
                         cursor,
                         run_id,
                         str(e)
                     )
-
                     conn.commit()
 
-                    logger.exception(
-                        f"Failed loading {filename}"
-                    )
+                    logger.exception(f"Failed loading {filename}")
                     raise
     except Exception:
         conn.rollback()
@@ -217,7 +207,6 @@ def load_mongodb():
 
     try:
         for table_name in LOAD_ORDER:
-
             objects = client.list_objects(
                 bucket,
                 prefix=f"processed/mongodb/{table_name}/",
@@ -264,9 +253,7 @@ def load_mongodb():
                     response.release_conn()
 
                     df = pd.read_parquet(parquet_bytes)
-                    logger.info(
-                        f"Loading {len(df)} rows into public.{table_name}"
-                    )
+                    logger.info(f"Loading {len(df)} rows into public.{table_name}")
 
                     csv_buffer = io.StringIO()
                     df.to_csv(
@@ -307,10 +294,7 @@ def load_mongodb():
                     )
                     conn.commit()
 
-                    logger.info(
-                        f"Successfully loaded {len(df)} rows "
-                        f"from {filename} into {table_name}"
-                    )
+                    logger.info(f"Successfully loaded {len(df)} rows from {filename} into {table_name}")
 
                 except Exception as e:
                     conn.rollback()
@@ -393,13 +377,9 @@ def load_api():
 
                     df = pd.read_parquet(parquet_bytes)
                     if df.empty:
-                        logger.warning(
-                            f"Skipping empty file {filename}"
-                        )
+                        logger.warning(f"Skipping empty file {filename}")
                         continue
-                    logger.info(
-                        f"Loading {len(df)} rows into public.{table_name}"
-                    )
+                    logger.info(f"Loading {len(df)} rows into public.{table_name}")
 
                     csv_buffer = io.StringIO()
                     df.to_csv(
@@ -453,12 +433,4 @@ def load_api():
     finally:
         cursor.close()
 
-    logger.info(
-        "API tables loaded successfully"
-    )
-
-
-if __name__ == "__main__":
-    load_postgres()
-    load_mongodb()
-    load_api()
+    logger.info("API tables loaded successfully")

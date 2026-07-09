@@ -199,12 +199,7 @@ def transform_mongodb():
                     ],
                     axis=1,
                 )
-                df = df.rename(
-                    columns={
-                        "type": "device_type",
-                        "os": "device_os",
-                    }
-                )
+                df = df.rename(columns={"type": "device_type", "os": "device_os",})
                 # timestamps
                 datetime_cols = [
                     "started_at",
@@ -215,11 +210,7 @@ def transform_mongodb():
                     df[col] = pd.to_datetime(df[col], errors="coerce")
                 
                 # integer columns
-                int_cols = [
-                    "customer_id",
-                    "product_id",
-                    "quantity",
-                ]
+                int_cols = ["customer_id", "product_id", "quantity",]
                 for col in int_cols:
                     df[col] = df[col].astype("Int64")
 
@@ -415,10 +406,7 @@ def transform_api():
 
                 for col in datetime_columns:
                     if col in df.columns:
-                        df[col] = pd.to_datetime(
-                            df[col],
-                            errors="coerce",
-                        )
+                        df[col] = pd.to_datetime(df[col], errors="coerce",)
 
                 # Integer columns
                 if "order_id" in df.columns:
@@ -495,8 +483,3 @@ def transform_api():
     except Exception as e:
         logger.exception(f"API transformation failed: {e}")
         raise
-
-if __name__ == "__main__":
-    transform_postgres()
-    transform_mongodb()
-    transform_api()
