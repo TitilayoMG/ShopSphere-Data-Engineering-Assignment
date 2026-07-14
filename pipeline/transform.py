@@ -6,7 +6,7 @@ import logging
 import pandas as pd
 from io import BytesIO
 
-from .utils import get_minio_client, upload_to_minio
+from utils import get_minio_client, upload_to_minio
 # -------------------------
 # LOGGING
 # -------------------------
@@ -306,7 +306,7 @@ def transform_mongodb():
     
     except Exception as e:
         logger.exception(f"MongoDB transformation failed: {e}")
-        raise        
+              
 
 
 
@@ -373,7 +373,6 @@ def transform_api():
             logger.info(
                 f"Loaded {len(df)} records "
                 f"({len(df.columns)} columns)"
-                f"({df.columns} columns)"
             )
             # -----------------------------
             # SHIPMENTS
@@ -487,4 +486,4 @@ def transform_api():
 
     except Exception as e:
         logger.exception(f"API transformation failed: {e}")
-        raise
+    

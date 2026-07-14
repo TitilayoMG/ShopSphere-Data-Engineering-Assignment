@@ -470,9 +470,3 @@ def api_extraction():
         logger.info(f"Updated watermark to {latest_updated_at}")
     logger.info("SwiftDrop API extraction completed")
     logger.info("=" * 80)
-
-
-if __name__ == "__main__":
-    postgres_extraction()
-    mongodb_extraction()
-    api_extraction()

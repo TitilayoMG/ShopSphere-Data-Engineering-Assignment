@@ -124,7 +124,7 @@ All extraction functions load `config.json` once at import time and reuse a shar
   ```
   raw/mongodb/<collection>/<collection>_<timestamp>_<file_number>.parquet
   ```
-- The watermark is updated to the highest `_id` seen, if it advanced.
+- The watermark is updated to the highest `_id` seen.
 
 ### 4.3 `api_extraction()`
 - Iterates over every endpoint in `API_CONFIG["endpoints"]` (`carriers`, `shipments`).
@@ -261,9 +261,20 @@ The pipeline WAREHOUSE database already has:
 
 ## 11. Running the Pipeline
 
+Delete containers and local volumes, then start from a clean state:
+
 ```bash
-pip install -r requirements.txt   # psycopg2, pandas, pyarrow, minio, python-dotenv, pymongo, requests, bson
-python main.py
+docker compose down -v
+docker compose up -d --build
+```
+
+Run the `pipeline`
+```bash
+docker compose up --build pipeline
+```
+
+```bash
+docker compose down
 ```
 
 `main.py` will run the full extract → transform → load cycle for all three sources, log each stage boundary clearly, and exit non-zero (via the re-raised exception) if any stage fails.
@@ -275,7 +286,7 @@ python main.py
 - **`order_items`** intentionally has no incremental watermark — it is fully re-extracted every run because the source table has no `updated_at` column.
 - **Idempotent loads**: re-running `load_postgres()` / `load_mongodb()` / `load_api()` is safe — already-successfully-loaded files are detected via `control.pipeline_runs` and skipped.
 - **Raw-file deletion**: `transform_*` functions delete the source raw Parquet file after a successful transform, so `raw/` is meant to be transient, not an archive.
-- **Error isolation**: `transform_postgres()` catches and logs per-file exceptions and keeps processing the rest of the batch; `transform_mongodb()` and `transform_api()` re-raise on failure, stopping the whole transform run.
+- **Error isolation**: `transform_postgres()`  `transform_mongodb()` and `transform_api()`  catches and logs per-file exceptions and keeps processing the rest of the batch.
 - **Empty file handling**: `load_api()` explicitly skips empty processed Parquet files with a warning rather than attempting a `COPY` with zero rows.
 
 --
