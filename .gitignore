@@ -3,3 +3,4 @@ shopsphere_watermark.json
 pipeline/__pycache__/
 venv/
 tests/__pycache__/
+local_data/

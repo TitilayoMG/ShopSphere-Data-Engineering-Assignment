@@ -3,15 +3,15 @@
 # -------------------------
 import logging
 import os
-import psycopg2
-from dotenv import load_dotenv
+# import psycopg2
+# from dotenv import load_dotenv
 from minio import Minio
 import pandas as pd
 import io
 import json
 
 
-load_dotenv()
+# load_dotenv()
 
 # -------------------------
 # LOGGING
@@ -65,7 +65,7 @@ def upload_to_minio(
 # ============================================================================
 # PostgreSQL Connection
 # ============================================================================
-def get_postgres_connection(prefix: str = "WAREHOUSE"):
+# def get_postgres_connection(prefix: str = "WAREHOUSE"):
     """
     Create a PostgreSQL connection.
     prefix : str
@@ -80,13 +80,13 @@ def get_postgres_connection(prefix: str = "WAREHOUSE"):
             ...
     Returns: psycopg2.connection
     """
-    return psycopg2.connect(
-        host=os.getenv(f"{prefix}_POSTGRES_HOST"),
-        port=os.getenv(f"{prefix}_POSTGRES_PORT"),
-        database=os.getenv(f"{prefix}_POSTGRES_DB"),
-        user=os.getenv(f"{prefix}_POSTGRES_USER"),
-        password=os.getenv(f"{prefix}_POSTGRES_PASSWORD"),
-    )
+    # return psycopg2.connect(
+    #     host=os.getenv(f"{prefix}_POSTGRES_HOST"),
+    #     port=os.getenv(f"{prefix}_POSTGRES_PORT"),
+    #     database=os.getenv(f"{prefix}_POSTGRES_DB"),
+    #     user=os.getenv(f"{prefix}_POSTGRES_USER"),
+    #     password=os.getenv(f"{prefix}_POSTGRES_PASSWORD"),
+    # )
 
 # ============================================================================
 # Parquet Utilities

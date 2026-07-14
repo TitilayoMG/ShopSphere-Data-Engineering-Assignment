@@ -6,7 +6,7 @@ import logging
 import pandas as pd
 from io import BytesIO
 
-from utils import get_minio_client, upload_to_minio
+from .utils import get_minio_client, upload_to_minio
 # -------------------------
 # LOGGING
 # -------------------------
@@ -16,8 +16,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-
-client, bucket = get_minio_client()
 
 # =====================================================================
 # Postgres Transformations
@@ -38,6 +36,9 @@ def transform_postgres():
     """
     logger.info("=" * 60)
     logger.info("Starting PostgreSQL transformation...")
+
+    client, bucket = get_minio_client()
+
     try:
         objects = client.list_objects(
             bucket_name=bucket,
@@ -147,6 +148,8 @@ def transform_mongodb():
         processed/mongodb/<filename>.parquet
     """
     logger.info("Starting MongoDB transformation from MinIO")
+    client, bucket = get_minio_client()
+
     try:
         objects = client.list_objects(
             bucket,
@@ -334,6 +337,8 @@ def transform_api():
     - Log transformation progress and output file locations.
     """
     logger.info("Starting API transformation from MinIO")
+    client, bucket = get_minio_client()
+
     try:
         objects = client.list_objects(
             bucket,

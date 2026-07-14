@@ -34,9 +34,9 @@ jobs:
           ruff check .
 
       # Run unit tests
-    #   - name: Run unit tests
-    #     run: |
-    #       python -m unittest discover
+      - name: Run unit tests
+        run: |
+          python -m unittest discover
 
       # Scan dependencies for known vulnerabilities
       - name: Security scan

@@ -10,4 +10,4 @@ RUN pip install --default-timeout=600 --no-cache-dir -r requirements.txt
 
 COPY . .
 
-CMD ["python", "main.py"]
+CMD ["python", "extract.py"]
