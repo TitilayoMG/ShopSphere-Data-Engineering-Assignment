@@ -6,7 +6,7 @@ import csv
 import logging
 import pandas as pd
 
-from utils import (get_minio_client, 
+from pipeline.utils import (get_minio_client, 
                    get_postgres_connection,
                    start_pipeline_run,
                    mark_pipeline_fail,

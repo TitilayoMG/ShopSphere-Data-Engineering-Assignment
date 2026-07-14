@@ -33,8 +33,9 @@ jobs:
         run: |
           ruff check .
 
-      # Run unit tests
       - name: Run unit tests
+        env:
+          PYTHONPATH: .
         run: |
           pytest tests/ -v --cov=pipeline --cov-report=term-missing
 

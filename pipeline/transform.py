@@ -6,7 +6,7 @@ import logging
 import pandas as pd
 from io import BytesIO
 
-from utils import get_minio_client, upload_to_minio
+from pipeline.utils import get_minio_client, upload_to_minio
 # -------------------------
 # LOGGING
 # -------------------------

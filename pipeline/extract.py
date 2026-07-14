@@ -15,7 +15,7 @@ from bson import ObjectId
 # -------------------------
 from dotenv import load_dotenv
 from pymongo import MongoClient
-from utils import (
+from pipeline.utils import (
     upload_to_minio,
     get_minio_client,
     get_postgres_connection,

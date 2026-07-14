@@ -3,9 +3,9 @@
 
 import logging
 
-from extract import postgres_extraction, mongodb_extraction, api_extraction
-from transform import transform_postgres, transform_mongodb, transform_api
-from load import load_postgres, load_mongodb, load_api
+from pipeline.extract import postgres_extraction, mongodb_extraction, api_extraction
+from pipeline.transform import transform_postgres, transform_mongodb, transform_api
+from pipeline.load import load_postgres, load_mongodb, load_api
 
 
 
