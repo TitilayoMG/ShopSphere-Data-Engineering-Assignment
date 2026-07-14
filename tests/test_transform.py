@@ -139,9 +139,13 @@ def test_product_reviews_transformation(
     # )
 
 
-    assert (
+    # assert (
+    #     df["verified_purchase"].iloc[0]
+    #     == False
+    # )
+
+    assert not bool(
         df["verified_purchase"].iloc[0]
-        == False
     )
 
      # -------------------------------
