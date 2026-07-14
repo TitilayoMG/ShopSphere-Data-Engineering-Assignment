@@ -33,10 +33,11 @@ jobs:
         run: |
           ruff check .
 
-      # Run unit tests
-    #   - name: Run unit tests
-    #     run: |
-    #       python -m unittest discover
+      - name: Run unit tests
+        env:
+          PYTHONPATH: .
+        run: |
+          pytest tests/ -v --cov=pipeline --cov-report=term-missing
 
       # Scan dependencies for known vulnerabilities
       - name: Security scan
@@ -45,6 +46,17 @@ jobs:
           pip install pip-audit
           pip-audit
 
+      # - name: Build Docker image
+      #   run: |
+      #     docker build -t shopsphere -f pipeline/Dockerfile pipeline
+
       - name: Build Docker image
         run: |
-          docker build -t shopsphere -f pipeline/Dockerfile pipeline
+          docker build \
+          -t shopsphere:test \
+          -f pipeline/Dockerfile pipeline
+
+
+      - name: Test Docker container starts
+        run: |
+          docker run --rm shopsphere:test python --version

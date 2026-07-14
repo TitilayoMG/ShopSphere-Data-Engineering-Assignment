@@ -88,7 +88,6 @@ def get_postgres_connection(prefix: str = "WAREHOUSE"):
         password=os.getenv(f"{prefix}_POSTGRES_PASSWORD"),
     )
 
-
 # ============================================================================
 # Parquet Utilities
 # ============================================================================

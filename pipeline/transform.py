@@ -6,7 +6,7 @@ import logging
 import pandas as pd
 from io import BytesIO
 
-from utils import get_minio_client, upload_to_minio
+from pipeline.utils import get_minio_client, upload_to_minio
 # -------------------------
 # LOGGING
 # -------------------------
@@ -16,8 +16,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-
-client, bucket = get_minio_client()
 
 # =====================================================================
 # Postgres Transformations
@@ -38,6 +36,9 @@ def transform_postgres():
     """
     logger.info("=" * 60)
     logger.info("Starting PostgreSQL transformation...")
+
+    client, bucket = get_minio_client()
+
     try:
         objects = client.list_objects(
             bucket_name=bucket,
@@ -147,6 +148,8 @@ def transform_mongodb():
         processed/mongodb/<filename>.parquet
     """
     logger.info("Starting MongoDB transformation from MinIO")
+    client, bucket = get_minio_client()
+
     try:
         objects = client.list_objects(
             bucket,
@@ -199,12 +202,7 @@ def transform_mongodb():
                     ],
                     axis=1,
                 )
-                df = df.rename(
-                    columns={
-                        "type": "device_type",
-                        "os": "device_os",
-                    }
-                )
+                df = df.rename(columns={"type": "device_type", "os": "device_os",})
                 # timestamps
                 datetime_cols = [
                     "started_at",
@@ -215,11 +213,7 @@ def transform_mongodb():
                     df[col] = pd.to_datetime(df[col], errors="coerce")
                 
                 # integer columns
-                int_cols = [
-                    "customer_id",
-                    "product_id",
-                    "quantity",
-                ]
+                int_cols = ["customer_id", "product_id", "quantity",]
                 for col in int_cols:
                     df[col] = df[col].astype("Int64")
 
@@ -312,7 +306,7 @@ def transform_mongodb():
     
     except Exception as e:
         logger.exception(f"MongoDB transformation failed: {e}")
-        raise        
+              
 
 
 
@@ -343,6 +337,8 @@ def transform_api():
     - Log transformation progress and output file locations.
     """
     logger.info("Starting API transformation from MinIO")
+    client, bucket = get_minio_client()
+
     try:
         objects = client.list_objects(
             bucket,
@@ -377,7 +373,6 @@ def transform_api():
             logger.info(
                 f"Loaded {len(df)} records "
                 f"({len(df.columns)} columns)"
-                f"({df.columns} columns)"
             )
             # -----------------------------
             # SHIPMENTS
@@ -415,10 +410,7 @@ def transform_api():
 
                 for col in datetime_columns:
                     if col in df.columns:
-                        df[col] = pd.to_datetime(
-                            df[col],
-                            errors="coerce",
-                        )
+                        df[col] = pd.to_datetime(df[col], errors="coerce",)
 
                 # Integer columns
                 if "order_id" in df.columns:
@@ -494,9 +486,4 @@ def transform_api():
 
     except Exception as e:
         logger.exception(f"API transformation failed: {e}")
-        raise
-
-if __name__ == "__main__":
-    transform_postgres()
-    transform_mongodb()
-    transform_api()
+    
