@@ -26,6 +26,7 @@ jobs:
       - name: Build and Push Docker Image
         uses: docker/build-push-action@v6
         with:
-          context: .
+          context: ./pipeline
+          file: ./pipeline/Dockerfile
           push: true
           tags: madina345/shopsphere:1.0
