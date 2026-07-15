@@ -37,7 +37,7 @@ LOAD_ORDER = [
     "customers",
     "products",
     "orders",
-    "order_items",
+    # "order_items",
     "payments",
 ]
 
@@ -321,7 +321,7 @@ def load_api():
     Uses PostgreSQL COPY for bulk loading.
     """
     LOAD_ORDER = [
-        "carriers",
+        # "carriers",
         "shipments",
     ]
     conn = get_postgres_connection("WAREHOUSE")
