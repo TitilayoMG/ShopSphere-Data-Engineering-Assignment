@@ -101,7 +101,7 @@ services:
       minio:
         condition: service_healthy
     volumes:
-      - ./pipeline:/app
+      - .:/app
     networks: [shopsphere-net]
 
 volumes:
