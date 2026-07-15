@@ -2,7 +2,7 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-COPY requirements.txt .
+COPY pipeline/requirements.txt .
 
 RUN cat requirements.txt
 
