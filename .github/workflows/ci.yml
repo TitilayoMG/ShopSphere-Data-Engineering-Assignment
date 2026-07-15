@@ -53,10 +53,10 @@ jobs:
       - name: Build Docker image
         run: |
           docker build \
-          -t shopsphere:test \
+          -t shopsphere:1.0 \
           -f pipeline/Dockerfile pipeline
 
 
       - name: Test Docker container starts
         run: |
-          docker run --rm shopsphere:test python --version
+          docker run --rm shopsphere:1.0 python --version
