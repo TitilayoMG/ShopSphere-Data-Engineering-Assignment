@@ -278,10 +278,67 @@ docker compose down
 ```
 
 `main.py` will run the full extract → transform → load cycle for all three sources, log each stage boundary clearly, and exit non-zero (via the re-raised exception) if any stage fails.
-
 ---
 
-## 12. Key Design Notes / Known Quirks
+## 12. Running the Pipeline Docker Image
+The `madina345/shopsphere:1.0` image is designed to run **with the other services** defined in the project's `docker-compose.yml`.
+
+The pipeline depends on the following services:
+- Source PostgreSQL
+- Source MongoDB
+- MinIO
+- Mock API
+
+### Prerequisites
+- Docker Desktop installed and running
+- Docker Compose installed
+- A `.env` file in the project root containing all required environment variables
+
+### Start all services
+From the project root directory, run:
+
+```bash
+docker compose up -d
+```
+
+This starts all services on the same Docker network, allowing the pipeline container to communicate with:
+- `source-postgres`
+- `source-mongodb`
+- `minio`
+- `mock-api`
+
+### Verify services are running
+
+```bash
+docker compose ps
+```
+Ensure all containers are in the **Up** state before running the pipeline.
+
+### Important
+
+Do **not** run the pipeline image directly using:
+
+```bash
+docker run madina345/shopsphere:1.0
+```
+Running the image this way creates an isolated container that is **not connected** to the Docker Compose network. As a result, the pipeline will not be able to resolve service names such as:
+
+- `source-postgres`
+- `source-mongodb`
+- `minio`
+- `mock-api`
+
+and will fail with errors similar to:
+
+```text
+psycopg2.OperationalError:
+could not translate host name "source-postgres" to address
+```
+
+Always run the pipeline together with the other services using Docker Compose so that all containers share the same network.
+
+
+## 13. Key Design Notes / Known Quirks
 
 - **`order_items`** intentionally has no incremental watermark — it is fully re-extracted every run because the source table has no `updated_at` column.
 - **Idempotent loads**: re-running `load_postgres()` / `load_mongodb()` / `load_api()` is safe — already-successfully-loaded files are detected via `control.pipeline_runs` and skipped.
@@ -291,7 +348,7 @@ docker compose down
 
 --
 
-## 13. limitations of this project
+## 14. limitations of this project
 
 - **`Data integrity`** the load stage can't handle updates
 load_postgres(), load_mongodb(), and load_api() all use COPY ... FROM STDIN with no ON CONFLICT / upsert logic. Combined with the fact that extraction re-pulls any row whose updated_at (or _id) has changed.
