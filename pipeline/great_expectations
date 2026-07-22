@@ -1,0 +1,20 @@
+config_version: 3
+
+plugins_directory: plugins/
+
+stores:
+  expectations_store:
+    class_name: ExpectationsStore
+    store_backend:
+      class_name: InMemoryStoreBackend
+
+  validations_store:
+    class_name: ValidationsStore
+    store_backend:
+      class_name: InMemoryStoreBackend
+
+expectations_store_name: expectations_store
+validations_store_name: validations_store
+
+anonymous_usage_statistics:
+  enabled: false

@@ -7,6 +7,7 @@ import pandas as pd
 from io import BytesIO
 
 from pipeline.utils import get_minio_client, upload_to_minio
+from pipeline.data_quality import validate_customer_sessions
 # -------------------------
 # LOGGING
 # -------------------------
@@ -220,6 +221,8 @@ def transform_mongodb():
                 # remove duplicate events
                 df = df.drop_duplicates()
                 duplicates_removed = rows_after_explode - len(df)
+                validate_customer_sessions(df)
+                
                 logger.info(
                     f"customer_sessions: "
                     f"rows_before={rows_before}, "
