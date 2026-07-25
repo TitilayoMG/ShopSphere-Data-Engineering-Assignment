@@ -7,7 +7,6 @@ import pandas as pd
 from io import BytesIO
 
 from pipeline.utils import get_minio_client, upload_to_minio
-from pipeline.data_quality import validate_customer_sessions
 # -------------------------
 # LOGGING
 # -------------------------
@@ -131,7 +130,7 @@ def transform_postgres():
         logger.exception(f"Unexpected error: {e}")
 
 
-
+from pipeline.data_validation_gx import DataQualityValidator
 # =====================================================================
 # Mongodb Transformations
 # =====================================================================
@@ -150,6 +149,8 @@ def transform_mongodb():
     """
     logger.info("Starting MongoDB transformation from MinIO")
     client, bucket = get_minio_client()
+    validator = DataQualityValidator()
+
 
     try:
         objects = client.list_objects(
@@ -221,7 +222,27 @@ def transform_mongodb():
                 # remove duplicate events
                 df = df.drop_duplicates()
                 duplicates_removed = rows_after_explode - len(df)
-                validate_customer_sessions(df)
+
+                # gx_validator = validator.get_validator(
+                #     dataset_name="customer_sessions",
+                #     dataframe=df,
+                # )
+                passed = validator.validate_dataset(
+                    dataset_name="customer_sessions",
+                    dataframe=df,
+                )
+
+                # gx_validator.expect_table_row_count_to_be_between(
+                #     min_value=1
+                # )
+
+                # ...
+
+                # # gx_validator.save_expectation_suite()
+                # validator.context.suites.add_or_update(
+                #     gx_validator.expectation_suite
+                # )
+ 
                 
                 logger.info(
                     f"customer_sessions: "
@@ -264,6 +285,22 @@ def transform_mongodb():
 
                 duplicates_removed = rows_before - len(df)
 
+                # gx_validator = validator.get_validator(
+                #     dataset_name="product_reviews",
+                #     dataframe=df,
+                # )
+
+                passed = validator.validate_dataset(
+                    dataset_name="product_reviews",
+                    dataframe=df,
+                )
+
+                # ....all expectations will be here
+
+                # validator.context.suites.add_or_update(
+                #     gx_validator.expectation_suite
+                # )
+
                 logger.info(
                     f"product_reviews: "
                     f"null_review_text={null_reviews}, "
@@ -291,9 +328,9 @@ def transform_mongodb():
                 buffer=output_buffer,
                 content_type="application/octet-stream"
             )
-            client.remove_object(bucket, object_name)
+            # client.remove_object(bucket, object_name)
             processed_files += 1
-            deleted_files += 1
+            # deleted_files += 1
 
             logger.info(
                 f"Successfully uploaded "
@@ -309,6 +346,7 @@ def transform_mongodb():
     
     except Exception as e:
         logger.exception(f"MongoDB transformation failed: {e}")
+        raise
               
 
 

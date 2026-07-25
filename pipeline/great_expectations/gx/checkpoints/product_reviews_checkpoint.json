@@ -1,0 +1,12 @@
+{
+  "actions": [],
+  "id": "9eea7f1f-efe7-4c39-ad97-b5b263268c2a",
+  "name": "product_reviews_checkpoint",
+  "result_format": "SUMMARY",
+  "validation_definitions": [
+    {
+      "id": "bae08a67-212c-4e7d-8034-23242aee0b1e",
+      "name": "product_reviews_validation"
+    }
+  ]
+}

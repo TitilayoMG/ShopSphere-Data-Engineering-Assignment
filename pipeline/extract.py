@@ -118,13 +118,13 @@ def postgres_extraction():
                 logger.info(f"Incremental extraction using watermark: {watermark}")
                 cursor.execute(
                     f"""
-                    SELECT *
+                    SELECT * 
                     FROM {table}
                     WHERE updated_at > %s
                     ORDER BY updated_at
                     """,
                     (watermark,)
-                )
+                ) # list all columns instead of *
             else:
                 logger.info("No watermark found. Performing full extraction.")
                 cursor.execute(
@@ -141,7 +141,7 @@ def postgres_extraction():
         latest_updated_at = None
 
         while True:
-            rows = cursor.fetchmany(CHUNK_SIZE)
+            rows = cursor.fetchmany(CHUNK_SIZE) # track the last row loaded to ensure it doesnt reload same rows
             if not rows:
                 break
             table_rows += len(rows)
@@ -160,7 +160,7 @@ def postgres_extraction():
     
             df, buffer= records_to_parquet_buffer(records)
 
-            object_name = (f"raw/postgres/{table}/{table}_{datetimestamp}_{file_number}.parquet")
+            object_name = (f"raw/postgres/{table}/{table}_{datetimestamp}_{file_number}.parquet") #file number should always start from 1 for every 1
 
             upload_to_minio(
                 minio_client,
