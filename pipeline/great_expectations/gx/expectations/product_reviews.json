@@ -1,0 +1,125 @@
+{
+  "expectations": [
+    {
+      "id": "8ab4849d-9978-4c13-8261-ee13f8187aea",
+      "kwargs": {
+        "column": "_id"
+      },
+      "meta": {},
+      "severity": "critical",
+      "type": "expect_column_values_to_not_be_null"
+    },
+    {
+      "id": "246e30e8-3f60-4896-a6d4-be98aba7d087",
+      "kwargs": {
+        "column": "_id"
+      },
+      "meta": {},
+      "severity": "critical",
+      "type": "expect_column_values_to_be_unique"
+    },
+    {
+      "id": "91663fa9-dc57-4d78-95b7-1f8a294d0373",
+      "kwargs": {
+        "column": "customer_id"
+      },
+      "meta": {},
+      "severity": "critical",
+      "type": "expect_column_values_to_not_be_null"
+    },
+    {
+      "id": "b968cbd6-3bb8-4ad0-8e0e-dda8f341811d",
+      "kwargs": {
+        "column": "product_id"
+      },
+      "meta": {},
+      "severity": "critical",
+      "type": "expect_column_values_to_not_be_null"
+    },
+    {
+      "id": "cb891d5d-95be-4116-92f5-0ec8096bf954",
+      "kwargs": {
+        "column": "rating"
+      },
+      "meta": {},
+      "severity": "critical",
+      "type": "expect_column_values_to_not_be_null"
+    },
+    {
+      "id": "f09c74f0-7677-4daa-a6df-bbac9721bd8a",
+      "kwargs": {
+        "column": "title"
+      },
+      "meta": {},
+      "severity": "critical",
+      "type": "expect_column_values_to_not_be_null"
+    },
+    {
+      "id": "e4ae2146-66ba-4097-ac6e-fc4844bd7ae2",
+      "kwargs": {
+        "column": "title",
+        "max_value": 255,
+        "min_value": 1
+      },
+      "meta": {},
+      "severity": "critical",
+      "type": "expect_column_value_lengths_to_be_between"
+    },
+    {
+      "id": "7fd935db-c6d9-46f0-a436-57cccfc40dc3",
+      "kwargs": {
+        "column": "review_text"
+      },
+      "meta": {},
+      "severity": "critical",
+      "type": "expect_column_values_to_not_be_null"
+    },
+    {
+      "id": "b7a5af8e-92fb-467f-a5dd-df1b86c1471b",
+      "kwargs": {
+        "column": "verified_purchase",
+        "value_set": [
+          true,
+          false
+        ]
+      },
+      "meta": {},
+      "severity": "critical",
+      "type": "expect_column_values_to_be_in_set"
+    },
+    {
+      "id": "5ff595d5-0239-4400-a6d7-db749d6c8d38",
+      "kwargs": {
+        "column": "helpful_votes"
+      },
+      "meta": {},
+      "severity": "critical",
+      "type": "expect_column_values_to_not_be_null"
+    },
+    {
+      "id": "39de1435-5590-4088-b8a0-a2daa13526ce",
+      "kwargs": {
+        "column": "helpful_votes",
+        "min_value": 0.0
+      },
+      "meta": {},
+      "severity": "critical",
+      "type": "expect_column_values_to_be_between"
+    },
+    {
+      "id": "1be54e8d-0e7e-414d-a834-19f8e4fd3788",
+      "kwargs": {
+        "min_value": 1
+      },
+      "meta": {},
+      "severity": "critical",
+      "type": "expect_table_row_count_to_be_between"
+    }
+  ],
+  "id": "d78dd623-661c-4d7a-a0f3-783bd7e782be",
+  "meta": {
+    "great_expectations_version": "1.19.0"
+  },
+  "name": "product_reviews",
+  "notes": null
+}

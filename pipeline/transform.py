@@ -3,10 +3,13 @@
 # -------------------------
 import io
 import logging
-import pandas as pd
 from io import BytesIO
 
+import pandas as pd
+
 from pipeline.utils import get_minio_client, upload_to_minio
+from pipeline.data_validation_gx import DataQualityValidator
+
 # -------------------------
 # LOGGING
 # -------------------------
@@ -114,10 +117,10 @@ def transform_postgres():
                 client.remove_object(bucket, object_name)
                 deleted_files += 1
 
-            except Exception as e:
-                logger.exception(
-                    f"Failed transforming {object_name}: {e}"
-                )
+            
+            except Exception:
+                logger.exception(f"Failed transforming {object_name}")
+
         logger.info("=" * 60)
         logger.info(
             f"PostgreSQL transformation completed. "
@@ -126,9 +129,8 @@ def transform_postgres():
         )
         logger.info("=" * 60)
 
-    except Exception as e:
-        logger.exception(f"Unexpected error: {e}")
-
+    except Exception:
+        logger.exception("Unexpected error")
 
 
 # =====================================================================
@@ -149,6 +151,8 @@ def transform_mongodb():
     """
     logger.info("Starting MongoDB transformation from MinIO")
     client, bucket = get_minio_client()
+    validator = DataQualityValidator()
+
 
     try:
         objects = client.list_objects(
@@ -220,6 +224,28 @@ def transform_mongodb():
                 # remove duplicate events
                 df = df.drop_duplicates()
                 duplicates_removed = rows_after_explode - len(df)
+
+                # gx_validator = validator.get_validator(
+                #     dataset_name="customer_sessions",
+                #     dataframe=df,
+                # )
+                validator.validate_dataset(
+                    dataset_name="customer_sessions",
+                    dataframe=df,
+                )
+
+                # gx_validator.expect_table_row_count_to_be_between(
+                #     min_value=1
+                # )
+
+                # ...
+
+                # # gx_validator.save_expectation_suite()
+                # validator.context.suites.add_or_update(
+                #     gx_validator.expectation_suite
+                # )
+ 
+                
                 logger.info(
                     f"customer_sessions: "
                     f"rows_before={rows_before}, "
@@ -261,6 +287,22 @@ def transform_mongodb():
 
                 duplicates_removed = rows_before - len(df)
 
+                # gx_validator = validator.get_validator(
+                #     dataset_name="product_reviews",
+                #     dataframe=df,
+                # )
+
+                validator.validate_dataset(
+                    dataset_name="product_reviews",
+                    dataframe=df,
+                )
+
+                # ....all expectations will be here
+
+                # validator.context.suites.add_or_update(
+                #     gx_validator.expectation_suite
+                # )
+
                 logger.info(
                     f"product_reviews: "
                     f"null_review_text={null_reviews}, "
@@ -288,9 +330,9 @@ def transform_mongodb():
                 buffer=output_buffer,
                 content_type="application/octet-stream"
             )
-            client.remove_object(bucket, object_name)
+            # client.remove_object(bucket, object_name)
             processed_files += 1
-            deleted_files += 1
+            # deleted_files += 1
 
             logger.info(
                 f"Successfully uploaded "
@@ -304,8 +346,9 @@ def transform_mongodb():
             f"Deleted files: {deleted_files}"
         )
     
-    except Exception as e:
-        logger.exception(f"MongoDB transformation failed: {e}")
+    except Exception:
+        logger.exception("MongoDB transformation failed")
+        raise
               
 
 
@@ -484,6 +527,6 @@ def transform_api():
             f"Deleted files: {deleted_files}"
         )
 
-    except Exception as e:
-        logger.exception(f"API transformation failed: {e}")
+    except Exception:
+        logger.exception(f"API transformation failed")
     

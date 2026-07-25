@@ -1,0 +1,47 @@
+{
+  "expectations": [
+    {
+      "id": "95937ea6-bf5c-415d-af01-30a08aafc530",
+      "kwargs": {
+        "min_value": 1
+      },
+      "meta": {},
+      "severity": "critical",
+      "type": "expect_table_row_count_to_be_between"
+    },
+    {
+      "id": "ff502173-4a54-44be-a89e-8f72647c1681",
+      "kwargs": {
+        "column": "device_os"
+      },
+      "meta": {},
+      "severity": "critical",
+      "type": "expect_column_to_exist"
+    },
+    {
+      "id": "b91ff50c-bced-4ddb-8d62-33040162ebe1",
+      "kwargs": {
+        "column": "session_id"
+      },
+      "meta": {},
+      "severity": "critical",
+      "type": "expect_column_values_to_not_be_null"
+    },
+    {
+      "id": "a56c150d-aaeb-4893-ad0e-975f1ce6857d",
+      "kwargs": {
+        "column": "quantity",
+        "min_value": 1.0
+      },
+      "meta": {},
+      "severity": "critical",
+      "type": "expect_column_values_to_be_between"
+    }
+  ],
+  "id": "7b71882a-2a8a-4c80-9b5a-6c01584a9227",
+  "meta": {
+    "great_expectations_version": "1.19.0"
+  },
+  "name": "customer_sessions",
+  "notes": null
+}

@@ -1,0 +1,22 @@
+{
+  "data": {
+    "asset": {
+      "id": "3e4cd5a9-f18d-4f56-9fbb-5c0aa6b66116",
+      "name": "customer_sessions"
+    },
+    "batch_definition": {
+      "id": "fc0dbd53-cd31-46a9-add8-91ecbf385bb5",
+      "name": "customer_sessions_batch"
+    },
+    "datasource": {
+      "id": "9edf1c63-e36a-4321-ba38-a92de9ae8e21",
+      "name": "shopsphere_datasource"
+    }
+  },
+  "id": "6e04e03a-1754-4c02-ade0-7362cb3f8ff2",
+  "name": "customer_sessions_validation",
+  "suite": {
+    "id": "7b71882a-2a8a-4c80-9b5a-6c01584a9227",
+    "name": "customer_sessions"
+  }
+}

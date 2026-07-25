@@ -1,15 +1,15 @@
 # -------------------------
 # Imports:  Custom Libraries
 # -------------------------
+import io
+import json
 import logging
 import os
+
+import pandas as pd
 import psycopg2
 from dotenv import load_dotenv
 from minio import Minio
-import pandas as pd
-import io
-import json
-
 
 load_dotenv()
 
@@ -146,8 +146,8 @@ def read_minio_watermark(client, bucket, source, object_name, field):
             metadata.get("file_number")
         )
 
-    except Exception as e:
-        logger.exception(f"Failed to read watermark file: {e}")
+    except Exception:
+        logger.exception("Failed to read watermark file")
         raise
 
 
@@ -171,7 +171,7 @@ def write_minio_watermark(
             data = json.loads(response.read().decode("utf-8"))
             response.close()
             response.release_conn()
-        except Exception:
+        except Exception: # noqa: BLE001
             data = {}
 
         data.setdefault(source, {})
@@ -196,8 +196,8 @@ def write_minio_watermark(
             f"Updated watermark for {source}/{object_name}"
         )
 
-    except Exception as e:
-        logger.exception(f"Failed to update watermark: {e}")
+    except Exception:
+        logger.exception("Failed to update watermark")
         raise
 
 
@@ -206,7 +206,7 @@ def write_minio_watermark(
 # ============================================================================
 def start_pipeline_run(cursor, pipeline_name, source_name, watermark_value=None):
     """
-    
+    start the pipeline run
     """
     cursor.execute("""
         INSERT INTO control.pipeline_runs

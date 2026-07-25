@@ -5,9 +5,8 @@ import json
 import logging
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
-import requests
 from bson import ObjectId
 
 # -------------------------
@@ -15,12 +14,13 @@ from bson import ObjectId
 # -------------------------
 from dotenv import load_dotenv
 from pymongo import MongoClient
+import requests
 from pipeline.utils import (
-    upload_to_minio,
     get_minio_client,
     get_postgres_connection,
-    records_to_parquet_buffer,
     read_minio_watermark,
+    records_to_parquet_buffer,
+    upload_to_minio,
     write_minio_watermark,
 )
 
@@ -118,13 +118,13 @@ def postgres_extraction():
                 logger.info(f"Incremental extraction using watermark: {watermark}")
                 cursor.execute(
                     f"""
-                    SELECT *
+                    SELECT * 
                     FROM {table}
                     WHERE updated_at > %s
                     ORDER BY updated_at
                     """,
                     (watermark,)
-                )
+                ) # list all columns instead of *
             else:
                 logger.info("No watermark found. Performing full extraction.")
                 cursor.execute(
@@ -134,14 +134,14 @@ def postgres_extraction():
                     ORDER BY updated_at
                     """
                 )
-        datetimestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
+        datetimestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S_%f")[:-3]
         
         file_number = last_file_number + 1
         table_rows = 0
         latest_updated_at = None
 
         while True:
-            rows = cursor.fetchmany(CHUNK_SIZE)
+            rows = cursor.fetchmany(CHUNK_SIZE) # track the last row loaded to ensure it doesnt reload same rows
             if not rows:
                 break
             table_rows += len(rows)
@@ -158,9 +158,9 @@ def postgres_extraction():
                 if (latest_updated_at is None or page_latest > latest_updated_at):
                     latest_updated_at = page_latest
     
-            df, buffer= records_to_parquet_buffer(records)
+            _df, buffer= records_to_parquet_buffer(records)
 
-            object_name = (f"raw/postgres/{table}/{table}_{datetimestamp}_{file_number}.parquet")
+            object_name = (f"raw/postgres/{table}/{table}_{datetimestamp}_{file_number}.parquet") #file number should always start from 1 for every 1
 
             upload_to_minio(
                 minio_client,
@@ -264,7 +264,7 @@ def mongodb_extraction():
             .batch_size(CHUNK_SIZE)
         )
         file_number = last_file_number + 1
-        datetimestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
+        datetimestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S_%f")[:-3]
 
         collection_documents = 0
         batch = []
@@ -278,7 +278,7 @@ def mongodb_extraction():
             batch.append(document)
 
             if len(batch) == CHUNK_SIZE:
-                df, buffer= records_to_parquet_buffer(batch)
+                _df, buffer= records_to_parquet_buffer(batch)
 
                 object_name = (f"raw/mongodb/{collection_name}/{collection_name}_{datetimestamp}_{file_number}.parquet")
 
@@ -305,7 +305,7 @@ def mongodb_extraction():
         # Remaining documents
         #
         if batch:
-            df, buffer= records_to_parquet_buffer(batch)
+            _df, buffer= records_to_parquet_buffer(batch)
 
             object_name = (
                 f"raw/mongodb/{collection_name}/"
@@ -377,7 +377,7 @@ def api_extraction():
     - Update the watermark only if newer data was successfully extracted.
     """
     base_url = os.getenv("MOCK_API_BASE_URL").rstrip("/")
-    datetimestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
+    datetimestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S_%f")[:-3]
 
     logger.info("=" * 80)
     logger.info("Starting SwiftDrop API extraction")

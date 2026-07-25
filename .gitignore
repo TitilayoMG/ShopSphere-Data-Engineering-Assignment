@@ -4,3 +4,8 @@ pipeline/__pycache__/
 venv/
 tests/__pycache__/
 local_data/
+.pytest_cache/
+pipeline/data_quality.py
+pipeline/extracts.py
+pipeline/great_expectations/customer_sessions.json
+pipeline/great_expectations/product_reviews.json

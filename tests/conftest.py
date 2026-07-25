@@ -1,6 +1,8 @@
-import pytest
-import pandas as pd
+
 import io
+
+import pandas as pd
+import pytest
 
 
 class FakeObject:
@@ -38,7 +40,7 @@ class FakeMinioClient:
 
         return [
             FakeObject(name)
-            for name in self.files.keys()
+            for name in self.files
             if name.startswith(prefix)
         ]
 
