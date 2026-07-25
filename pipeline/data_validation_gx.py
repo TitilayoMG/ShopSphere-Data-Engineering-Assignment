@@ -71,7 +71,7 @@ class DataQualityValidator:
                 self.DATASOURCE_NAME
             )
 
-        except Exception as e:
+        except Exception as e: # noqa: BLE001
 
             logger.info(
                 "Creating GX datasource '%s'",
@@ -91,7 +91,7 @@ class DataQualityValidator:
         try:
             return self.datasource.get_asset(dataset_name)
 
-        except Exception as e:
+        except Exception: # noqa: BLE001
             return self.datasource.add_dataframe_asset(
                 dataset_name
             )
@@ -107,7 +107,7 @@ class DataQualityValidator:
         try:
             return asset.get_batch_definition(batch_name)
 
-        except Exception as e:
+        except Exception: # noqa: BLE001
             return asset.add_batch_definition_whole_dataframe(
                 batch_name
             )
@@ -143,7 +143,7 @@ class DataQualityValidator:
     ):
         try:
             return self.context.suites.get(dataset_name)
-        except Exception as e:
+        except Exception as e: # noqa: BLE001
             logger.info(
                 "Creating Expectation Suite '%s'",
                 dataset_name,
@@ -174,7 +174,7 @@ class DataQualityValidator:
                 validation_name
             )
 
-        except Exception as e:
+        except Exception as e: # noqa: BLE001
             logger.info(
                 "Creating Validation Definition '%s'",
                 validation_name,
@@ -205,7 +205,7 @@ class DataQualityValidator:
                 checkpoint_name
             )
 
-        except Exception as e:
+        except Exception as e: # noqa: BLE001
             logger.info(
                 "Creating Checkpoint '%s'",
                 checkpoint_name,
