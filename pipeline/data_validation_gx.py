@@ -29,11 +29,11 @@ import logging
 from pathlib import Path
 import pandas as pd
 
+import great_expectations as gx
+
 
 logging.getLogger("great_expectations").setLevel(logging.WARNING) #it can be WARNING or ERROR or CRITICAL
 logging.getLogger("great_expectations").propagate = False
-
-import great_expectations as gx
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +71,7 @@ class DataQualityValidator:
                 self.DATASOURCE_NAME
             )
 
-        except Exception:
+        except Exception as e:
 
             logger.info(
                 "Creating GX datasource '%s'",
@@ -91,7 +91,7 @@ class DataQualityValidator:
         try:
             return self.datasource.get_asset(dataset_name)
 
-        except Exception:
+        except Exception as e:
             return self.datasource.add_dataframe_asset(
                 dataset_name
             )
@@ -107,7 +107,7 @@ class DataQualityValidator:
         try:
             return asset.get_batch_definition(batch_name)
 
-        except Exception:
+        except Exception as e:
             return asset.add_batch_definition_whole_dataframe(
                 batch_name
             )
@@ -143,7 +143,7 @@ class DataQualityValidator:
     ):
         try:
             return self.context.suites.get(dataset_name)
-        except Exception:
+        except Exception as e:
             logger.info(
                 "Creating Expectation Suite '%s'",
                 dataset_name,
@@ -174,7 +174,7 @@ class DataQualityValidator:
                 validation_name
             )
 
-        except Exception:
+        except Exception as e:
             logger.info(
                 "Creating Validation Definition '%s'",
                 validation_name,
@@ -205,7 +205,7 @@ class DataQualityValidator:
                 checkpoint_name
             )
 
-        except Exception:
+        except Exception as e:
             logger.info(
                 "Creating Checkpoint '%s'",
                 checkpoint_name,

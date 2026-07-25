@@ -1,18 +1,20 @@
 # -------------------------
 # Import: Standard Libraries
 # -------------------------
-import io
 import csv
+import io
 import logging
 import pandas as pd
 
-from pipeline.utils import (get_minio_client, 
-                   get_postgres_connection,
-                   start_pipeline_run,
-                   mark_pipeline_fail,
-                   mark_pipeline_success,
-                   read_pipeline_runs,
-                   update_pipeline_watermark
+
+from pipeline.utils import (
+    get_minio_client,
+    get_postgres_connection,
+    mark_pipeline_fail,
+    mark_pipeline_success,
+    read_pipeline_runs,
+    start_pipeline_run,
+    update_pipeline_watermark,
 )
 
 # -------------------------

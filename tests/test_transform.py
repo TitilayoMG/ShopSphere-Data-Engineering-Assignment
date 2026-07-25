@@ -1,6 +1,9 @@
+
 import io
+
 import pandas as pd
-import pipeline.transform as transform
+
+from pipeline import transform
 
 
 def test_null_brand_transformation(fake_minio, monkeypatch):

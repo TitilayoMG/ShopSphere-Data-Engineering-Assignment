@@ -3,10 +3,13 @@
 # -------------------------
 import io
 import logging
-import pandas as pd
 from io import BytesIO
 
+import pandas as pd
+
 from pipeline.utils import get_minio_client, upload_to_minio
+from pipeline.data_validation_gx import DataQualityValidator
+
 # -------------------------
 # LOGGING
 # -------------------------
@@ -114,10 +117,10 @@ def transform_postgres():
                 client.remove_object(bucket, object_name)
                 deleted_files += 1
 
-            except Exception as e:
-                logger.exception(
-                    f"Failed transforming {object_name}: {e}"
-                )
+            
+            except Exception:
+                logger.exception(f"Failed transforming {object_name}")
+
         logger.info("=" * 60)
         logger.info(
             f"PostgreSQL transformation completed. "
@@ -126,11 +129,10 @@ def transform_postgres():
         )
         logger.info("=" * 60)
 
-    except Exception as e:
-        logger.exception(f"Unexpected error: {e}")
+    except Exception:
+        logger.exception("Unexpected error")
 
 
-from pipeline.data_validation_gx import DataQualityValidator
 # =====================================================================
 # Mongodb Transformations
 # =====================================================================
@@ -227,7 +229,7 @@ def transform_mongodb():
                 #     dataset_name="customer_sessions",
                 #     dataframe=df,
                 # )
-                passed = validator.validate_dataset(
+                validator.validate_dataset(
                     dataset_name="customer_sessions",
                     dataframe=df,
                 )
@@ -290,7 +292,7 @@ def transform_mongodb():
                 #     dataframe=df,
                 # )
 
-                passed = validator.validate_dataset(
+                validator.validate_dataset(
                     dataset_name="product_reviews",
                     dataframe=df,
                 )
@@ -344,8 +346,8 @@ def transform_mongodb():
             f"Deleted files: {deleted_files}"
         )
     
-    except Exception as e:
-        logger.exception(f"MongoDB transformation failed: {e}")
+    except Exception:
+        logger.exception("MongoDB transformation failed")
         raise
               
 
@@ -525,6 +527,6 @@ def transform_api():
             f"Deleted files: {deleted_files}"
         )
 
-    except Exception as e:
-        logger.exception(f"API transformation failed: {e}")
+    except Exception:
+        logger.exception(f"API transformation failed")
     
