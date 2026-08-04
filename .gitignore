@@ -9,3 +9,6 @@ pipeline/data_quality.py
 pipeline/extracts.py
 pipeline/great_expectations/customer_sessions.json
 pipeline/great_expectations/product_reviews.json
+pipeline/source_data.txt
+pipeline/warehouse_ddl.sql
+pipeline/load_trial.py

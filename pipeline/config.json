@@ -1,36 +1,58 @@
 {
   "chunk_size": 100,
-
   "data_sources": {
     "postgres": {
-      "tables": [
-        "customers",
-        "orders",
-        "products",
-        "order_items",
-        "payments"
+      "datasets": [
+        {
+          "table": "customers",
+          "primary_key": ["customer_id"]
+        },
+        {
+          "table": "products",
+          "primary_key": ["product_id"]
+        },
+        {
+          "table": "orders",
+          "primary_key": ["order_id"]
+        },
+        {
+          "table": "order_items",
+          "primary_key": ["order_item_id"]
+        },
+        {
+          "table": "payments",
+          "primary_key": ["payment_id"]
+        }
       ]
     },
 
     "mongodb": {
-      "collections": [
-        "customer_sessions",
-        "product_reviews"
+      "datasets": [
+        {
+          "table": "customer_sessions",
+          "primary_key": ["_id", "event_type"]
+        },
+        {
+          "table": "product_reviews",
+          "primary_key": ["_id", "product_id"]
+        }
       ]
     },
 
     "fast_api": {
-      "endpoints": [
+      "datasets": [
         {
-              "table": "carriers",
-              "endpoint": "/api/v1/carriers",
-              "paginated": false
-          },
-          {
-              "table": "shipments",
-              "endpoint": "/api/v1/shipments",
-              "paginated": true
-          }
+          "table": "carriers",
+          "endpoint": "/api/v1/carriers",
+          "paginated": false,
+          "primary_key": ["carrier_id"]
+        },
+        {
+          "table": "shipments",
+          "endpoint": "/api/v1/shipments",
+          "paginated": true,
+          "primary_key": ["shipment_id", "event_time"]
+        }
       ]
     }
   }

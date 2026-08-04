@@ -44,7 +44,7 @@ class FakeMinioClient:
             if name.startswith(prefix)
         ]
 
-    def get_object(self, bucket, object_name):
+    def get_object(self, bucket_name, object_name):
         return FakeResponse(
             self.files[object_name]
         )
@@ -54,7 +54,7 @@ class FakeMinioClient:
 
 
 @pytest.fixture
-def fake_minio(monkeypatch):
+def fake_postgres_minio(monkeypatch):
 
     client = FakeMinioClient()
 

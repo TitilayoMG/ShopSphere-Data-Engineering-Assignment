@@ -1,8 +1,8 @@
-psycopg2-binary
-minio
-python-dotenv
-pyarrow
-pymongo
-pandas
-requests
-great_expectations
+psycopg2-binary==2.9.12
+minio==7.2.20
+python-dotenv==1.2.2
+pyarrow==25.0.0
+pymongo==4.17.0
+pandas==3.0.3
+requests==2.34.2
+great_expectations==1.19.0
