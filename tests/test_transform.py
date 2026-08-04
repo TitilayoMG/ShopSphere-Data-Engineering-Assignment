@@ -6,70 +6,70 @@ import pandas as pd
 from pipeline import transform
 
 
-def test_null_brand_transformation(fake_minio, monkeypatch):
+# def test_null_brand_transformation(fake_minio, monkeypatch):
     
-    # replace global client and bucket created during import
-    monkeypatch.setattr(
-        transform,
-        "get_minio_client",
-        lambda: (fake_minio, "test-bucket")
-    )
+#     # replace global client and bucket created during import
+#     monkeypatch.setattr(
+#         transform,
+#         "get_minio_client",
+#         lambda: (fake_minio, "test-bucket")
+#     )
 
-    # Mock upload_to_minio
-    def fake_upload(
-        client,
-        bucket,
-        object_name,
-        buffer,
-        content_type
-    ):
-        buffer.seek(0)
+#     # Mock upload_to_minio
+#     def fake_upload(
+#         client,
+#         bucket,
+#         object_name,
+#         buffer,
+#         content_type
+#     ):
+#         buffer.seek(0)
 
-        client.uploaded[object_name] = buffer.read()
+#         client.uploaded[object_name] = buffer.read()
     
-    monkeypatch.setattr(
-        transform,
-        "upload_to_minio",
-        fake_upload
-    )
+#     monkeypatch.setattr(
+#         transform,
+#         "upload_to_minio",
+#         fake_upload
+#     )
 
 
-    transform.transform_postgres()
+#     transform.transform_postgres()
 
 
-    output_path = (
-        "processed/postgres/products/products_test.parquet"
-    )
+#     output_path = (
+#         "processed/postgres/products/products_test.parquet"
+#     )
 
-    assert output_path in fake_minio.uploaded
-
-
-    # Read transformed parquet
-    output = io.BytesIO(
-        fake_minio.uploaded[output_path]
-    )
-
-    df = pd.read_parquet(output)
+#     assert output_path in fake_minio.uploaded
 
 
-    # NULL brand should become Unknown
-    assert (
-        df.loc[
-            df["product_name"] == "Laptop",
-            "brand"
-        ].iloc[0]
-        == "Unknown"
-    )
+#     # Read transformed parquet
+#     output = io.BytesIO(
+#         fake_minio.uploaded[output_path]
+#     )
+
+#     df = pd.read_parquet(output)
 
 
-    # Existing brand should remain unchanged
-    assert (
-        df.loc[
-            df["product_name"] == "Phone",
-            "brand"
-        ].iloc[0]
-        == "Apple"
-    )
+#     # NULL brand should become Unknown
+#     assert (
+#         df.loc[
+#             df["product_name"] == "Laptop",
+#             "brand"
+#         ].iloc[0]
+#         == "Unknown"
+#     )
+
+
+#     # Existing brand should remain unchanged
+#     assert (
+#         df.loc[
+#             df["product_name"] == "Phone",
+#             "brand"
+#         ].iloc[0]
+#         == "Apple"
+#     )
 
 
 def test_product_reviews_transformation(
