@@ -1,3 +1,5 @@
+# for whole project run: docker compose up -d
+
 FROM python:3.12-slim
 
 WORKDIR /app
@@ -12,7 +14,7 @@ COPY . .
 
 CMD ["python", "-m", "pipeline.main"]
 
-
+# for only pipeline run: docker compose up pipeline --build
 # FROM python:3.12-slim
 
 # WORKDIR /app

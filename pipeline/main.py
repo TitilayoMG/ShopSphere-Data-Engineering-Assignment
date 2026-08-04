@@ -15,11 +15,7 @@ from pipeline.transform import (
     transform_postgres,
 )
 
-from pipeline.load import (
-    load_api,
-    load_mongodb,
-    load_postgres,
-)
+from pipeline.load import load_all_data_source_files
 
 
 logger = logging.getLogger(__name__)
@@ -48,9 +44,7 @@ def run_pipeline():
         logger.info("STARTING LOADING")
         logger.info("=" * 80)
 
-        load_postgres()
-        load_mongodb()
-        load_api()
+        load_all_data_source_files()
 
         logger.info("=" * 80)
         logger.info("PIPELINE COMPLETED SUCCESSFULLY")

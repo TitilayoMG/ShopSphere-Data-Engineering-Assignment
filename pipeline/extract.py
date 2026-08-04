@@ -54,10 +54,7 @@ def load_config():
 # -------------------------
 # Variables
 # -------------------------
-SOURCE_CONFIG, CHUNK_SIZE = load_config()
-POSTGRES_CONFIG = SOURCE_CONFIG['postgres']
-MONGODB_CONFIG = SOURCE_CONFIG['mongodb']
-API_CONFIG = SOURCE_CONFIG['fast_api']
+DATA_SOURCES, CHUNK_SIZE = load_config()
 
 minio_client, bucket = get_minio_client()
 
@@ -90,7 +87,8 @@ def postgres_extraction():
     general_total_rows = 0
     total_files = 0
 
-    for table in POSTGRES_CONFIG["tables"]:
+    for dataset in DATA_SOURCES["postgres"]["datasets"]:
+        table = dataset["table"]
         logger.info(f"Starting extraction for table '{table}'")
        
         cursor = postgres_conn.cursor()
@@ -205,7 +203,6 @@ def postgres_extraction():
 
     logger.info("=" * 60)
     logger.info("POSTGRES EXTRACTION COMPLETED")
-    logger.info(f"Tables Processed : {len(POSTGRES_CONFIG['tables'])}")
     logger.info(f"Total Rows       : {general_total_rows:,}")
     logger.info(f"Total Files      : {total_files}")
     logger.info(f"Execution Time   : {elapsed} seconds")
@@ -243,7 +240,8 @@ def mongodb_extraction():
     total_documents = 0
     total_files = 0
 
-    for collection_name in MONGODB_CONFIG["collections"]:
+    for collection in DATA_SOURCES["mongodb"]["datasets"]:
+        collection_name = collection["table"]
         logger.info(f"Starting extraction for collection '{collection_name}'")
         watermark, last_file_number = read_minio_watermark(
                 minio_client,
@@ -351,7 +349,6 @@ def mongodb_extraction():
 
     logger.info("=" * 60)
     logger.info("MONGODB EXTRACTION COMPLETED")
-    logger.info(f"Collections Processed : {len(MONGODB_CONFIG['collections'])}")
     logger.info(f"Total Documents       : {total_documents:,}")
     logger.info(f"Total Files           : {total_files}")
     logger.info(f"Execution Time        : {elapsed} seconds")
@@ -381,8 +378,8 @@ def api_extraction():
 
     logger.info("=" * 80)
     logger.info("Starting SwiftDrop API extraction")
-    
-    for endpoint in API_CONFIG["endpoints"]:
+
+    for endpoint in DATA_SOURCES["fast_api"]["datasets"]:
         table = endpoint["table"]
         logger.info(f"Extracting table: {table}")
 

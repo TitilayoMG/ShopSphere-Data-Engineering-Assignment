@@ -114,7 +114,7 @@ def transform_postgres():
                 processed_files += 1
 
                 # Delete the original raw file after successful upload
-                client.remove_object(bucket, object_name)
+                # client.remove_object(bucket, object_name)
                 deleted_files += 1
 
             
@@ -131,6 +131,7 @@ def transform_postgres():
 
     except Exception:
         logger.exception("Unexpected error")
+        raise
 
 
 # =====================================================================
@@ -182,10 +183,10 @@ def transform_mongodb():
             response.close()
             response.release_conn()
 
-            logger.info(
-                f"Loaded {len(df)} records "
-                f"({len(df.columns)} columns)"
-            )
+            # logger.info(
+            #     f"Loaded {len(df)} records "
+            #     f"({len(df.columns)} columns)"
+            # )
 
             # CUSTOMER SESSIONS
             if collection == "customer_sessions":
@@ -206,7 +207,7 @@ def transform_mongodb():
                     ],
                     axis=1,
                 )
-                df = df.rename(columns={"type": "device_type", "os": "device_os",})
+                
                 # timestamps
                 datetime_cols = [
                     "started_at",
@@ -413,10 +414,11 @@ def transform_api():
             response.close()
             response.release_conn()
 
-            logger.info(
-                f"Loaded {len(df)} records "
-                f"({len(df.columns)} columns)"
-            )
+            # logger.info(
+            #     f"Loaded {len(df)} records "
+            #     f"({len(df.columns)} columns)"
+            # )
+            
             # -----------------------------
             # SHIPMENTS
             # -----------------------------
@@ -452,12 +454,10 @@ def transform_api():
                 ]
 
                 for col in datetime_columns:
-                    if col in df.columns:
-                        df[col] = pd.to_datetime(df[col], errors="coerce",)
+                    df[col] = pd.to_datetime(df[col], errors="coerce",)
 
                 # Integer columns
-                if "order_id" in df.columns:
-                    df["order_id"] = df["order_id"].astype("Int64")
+                df["order_id"] = df["order_id"].astype("Int64")
                 
                 df = df.drop(columns=["delivery_address_extra"], errors="ignore")
                 df = df.drop_duplicates()
@@ -514,7 +514,7 @@ def transform_api():
                 buffer=output_buffer,
                 content_type="application/octet-stream"
             )
-            client.remove_object(bucket, object_name)
+            # client.remove_object(bucket, object_name)
             processed_files += 1
             deleted_files += 1
             logger.info(
@@ -529,4 +529,8 @@ def transform_api():
 
     except Exception:
         logger.exception(f"API transformation failed")
-    
+        raise
+
+# if __name__ == "__main__":
+#     transform_mongodb() 
+#     transform_api()
