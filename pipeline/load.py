@@ -28,11 +28,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# -------------------------
-# Creating Connections
-# -------------------------
-client, bucket = get_minio_client()
-
 # ============================================================================
 # Load All Tables in Minio processed/ path
 # ============================================================================
