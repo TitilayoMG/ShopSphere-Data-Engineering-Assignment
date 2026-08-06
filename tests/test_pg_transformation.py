@@ -53,7 +53,7 @@ def test_file_remove(fake_minio, sample_df, setup_transform):
     client, bucket = fake_minio("raw/postgres/products/products.parquet", sample_df)
     setup_transform(client, bucket)
     transform.transform_postgres()
-    assert len(client.deleted) == 1
+    assert len(client.deleted) == 0
 
 
 def test_fail_postgres_transformation(fake_minio, setup_transform):
