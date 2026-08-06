@@ -115,11 +115,12 @@ def transform_postgres():
 
                 # Delete the original raw file after successful upload
                 # client.remove_object(bucket, object_name)
-                deleted_files += 1
+                # deleted_files += 1
 
             
             except Exception:
                 logger.exception(f"Failed transforming {object_name}")
+                raise
 
         logger.info("=" * 60)
         logger.info(

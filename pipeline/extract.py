@@ -56,7 +56,6 @@ def load_config():
 # -------------------------
 DATA_SOURCES, CHUNK_SIZE = load_config()
 
-minio_client, bucket = get_minio_client()
 
 # =====================================================================
 # DATA SOURCE 1: Postgres
@@ -81,6 +80,7 @@ def postgres_extraction():
     """
 
     start_time = time.time()
+    minio_client, bucket = get_minio_client()
     postgres_conn = get_postgres_connection("SOURCE")
     logger.info("Connected to PostgreSQL.")
 
@@ -232,7 +232,7 @@ def mongodb_extraction():
     """
 
     start_time = time.time()
-
+    minio_client, bucket = get_minio_client()
     mongo_client = MongoClient(os.getenv("MONGODB_URI"))
     database = mongo_client[os.getenv("MONGODB_DATABASE")]
     logger.info("Connected to MongoDB.")
@@ -375,7 +375,7 @@ def api_extraction():
     """
     base_url = os.getenv("MOCK_API_BASE_URL").rstrip("/")
     datetimestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S_%f")[:-3]
-
+    minio_client, bucket = get_minio_client()
     logger.info("=" * 80)
     logger.info("Starting SwiftDrop API extraction")
 
