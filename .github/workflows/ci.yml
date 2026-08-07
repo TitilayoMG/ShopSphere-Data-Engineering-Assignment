@@ -57,6 +57,7 @@ jobs:
       - name: Test Docker container to run PostgreSQL pipeline
         run: |
           docker run --rm \
+          --network shopsphere-net \
           -e SOURCE_POSTGRES_HOST="${{ secrets.SOURCE_POSTGRES_HOST }}" \
           -e SOURCE_POSTGRES_PORT="${{ secrets.SOURCE_POSTGRES_PORT }}" \
           -e SOURCE_POSTGRES_DB="${{ secrets.SOURCE_POSTGRES_DB }}" \
