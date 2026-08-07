@@ -4,15 +4,15 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-COPY requirements.txt .
+COPY pipeline/requirements.txt .
 
 RUN cat requirements.txt
 
 RUN pip install --default-timeout=600 --no-cache-dir -r requirements.txt
 
 COPY . .
-RUN chmod +x /app/entrypoint.sh
-ENTRYPOINT ["/app/entrypoint.sh"]
+RUN chmod +x /app/pipeline/entrypoint.sh
+ENTRYPOINT ["/app/pipeline/entrypoint.sh"]
 # CMD ["python", "-m", "pipeline.main"]
 
 # for only pipeline run: docker compose up pipeline --build

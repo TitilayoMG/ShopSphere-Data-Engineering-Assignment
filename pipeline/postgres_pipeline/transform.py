@@ -7,8 +7,8 @@ from io import BytesIO
 
 import pandas as pd
 
-from postgres_pipeline.utils import get_minio_client, upload_to_minio
-from postgres_pipeline.data_validation_gx import DataQualityValidator
+from pipeline.postgres_pipeline.utils import get_minio_client, upload_to_minio
+from pipeline.postgres_pipeline.data_validation_gx import DataQualityValidator
 
 # -------------------------
 # LOGGING
