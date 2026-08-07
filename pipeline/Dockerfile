@@ -11,7 +11,7 @@ RUN cat requirements.txt
 RUN pip install --default-timeout=600 --no-cache-dir -r requirements.txt
 
 COPY . .
-ENTRYPOINT ["./entrypoint.sh"]
+ENTRYPOINT ["pipeline/entrypoint.sh"]
 # CMD ["python", "-m", "pipeline.main"]
 
 # for only pipeline run: docker compose up pipeline --build
