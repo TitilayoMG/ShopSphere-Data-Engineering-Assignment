@@ -9,7 +9,7 @@ import json
 import pandas as pd
 
 
-from pipeline.postgres_pipeline.utils import (
+from postgres_pipeline.utils import (
     get_minio_client,
     get_postgres_connection,
     mark_pipeline_fail,

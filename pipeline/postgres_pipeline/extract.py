@@ -15,7 +15,7 @@ from bson import ObjectId
 from dotenv import load_dotenv
 from pymongo import MongoClient
 import requests
-from pipeline.postgres_pipeline.utils import (
+from postgres_pipeline.utils import (
     get_minio_client,
     get_postgres_connection,
     read_minio_watermark,

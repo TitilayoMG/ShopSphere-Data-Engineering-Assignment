@@ -3,19 +3,19 @@
 
 import logging
 
-from pipeline.postgres_pipeline.extract import (
+from postgres_pipeline.extract import (
     api_extraction,
     mongodb_extraction,
     postgres_extraction,
 )
 
-from pipeline.postgres_pipeline.transform import (
+from postgres_pipeline.transform import (
     transform_api,
     transform_mongodb,
     transform_postgres,
 )
 
-from pipeline.postgres_pipeline.load import load_all_data_source_files
+from postgres_pipeline.load import load_all_data_source_files
 
 
 logger = logging.getLogger(__name__)
