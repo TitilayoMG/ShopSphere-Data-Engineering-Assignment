@@ -5,7 +5,7 @@ from pandas.api.types import (
     is_integer_dtype,
 )
 import pytest 
-from pipeline import transform 
+from pipeline.postgres_pipeline import transform 
 
 
 @pytest.fixture 

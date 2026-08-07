@@ -2,7 +2,7 @@ from io import BytesIO
 
 import pytest 
 from unittest.mock import Mock
-from pipeline import utils
+from pipeline.postgres_pipeline import utils
 
 
 

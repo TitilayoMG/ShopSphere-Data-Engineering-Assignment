@@ -5,7 +5,7 @@ import pandas as pd
 import pytest 
 import pyarrow
 
-from pipeline import transform
+from pipeline.postgres_pipeline import transform
 
 @pytest.fixture 
 def sample_df():

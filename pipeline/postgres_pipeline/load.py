@@ -9,7 +9,7 @@ import json
 import pandas as pd
 
 
-from pipeline.utils import (
+from pipeline.postgres_pipeline.utils import (
     get_minio_client,
     get_postgres_connection,
     mark_pipeline_fail,
@@ -201,3 +201,5 @@ def load_all_data_source_files():
         cursor.close()
         conn.close()
 
+if __name__ == "__main__":
+    load_all_data_source_files()

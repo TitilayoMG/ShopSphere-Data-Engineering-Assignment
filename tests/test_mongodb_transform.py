@@ -10,7 +10,7 @@ from pandas.api.types import (
 
 import pytest
 from unittest.mock import Mock
-from pipeline import transform
+from pipeline.postgres_pipeline import transform
 
 
 @pytest.fixture 

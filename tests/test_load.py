@@ -1,7 +1,7 @@
 
 import pandas as pd 
 from unittest.mock import Mock
-from pipeline import load
+from pipeline.postgres_pipeline import load
 
 def test_postgres_load_duplicates(monkeypatch, fake_minio):
     df = pd.DataFrame({

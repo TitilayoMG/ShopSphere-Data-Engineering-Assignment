@@ -15,7 +15,7 @@ from bson import ObjectId
 from dotenv import load_dotenv
 from pymongo import MongoClient
 import requests
-from pipeline.utils import (
+from pipeline.postgres_pipeline.utils import (
     get_minio_client,
     get_postgres_connection,
     read_minio_watermark,
@@ -467,3 +467,9 @@ def api_extraction():
         logger.info(f"Updated watermark to {latest_updated_at}")
     logger.info("SwiftDrop API extraction completed")
     logger.info("=" * 80)
+
+
+if __name__ == "__main__":
+    postgres_extraction() 
+    mongodb_extraction()
+    api_extraction()
