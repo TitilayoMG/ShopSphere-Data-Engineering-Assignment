@@ -46,6 +46,6 @@ echo "Running pipeline: $PIPELINE"
 echo "Entry point: $ENTRYPOINT_FILE"
 echo "========================================"
 
-exec python "$ENTRYPOINT_FILE" "$@"
-
+# exec python "$ENTRYPOINT_FILE" "$@"
+exec python -m "pipeline.${PIPELINE}.main" "$@"
 # docker run --network shopsphere-net your-image shipments_pipeline
