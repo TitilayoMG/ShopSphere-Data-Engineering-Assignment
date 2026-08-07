@@ -54,11 +54,6 @@ jobs:
         run: |
           docker build -t shopsphere:1.0 -f pipeline/Dockerfile .
 
-
-      - name: Test Docker container starts
-        run: |
-          docker run --rm shopsphere:1.0 postgres_pipeline
-
       - name: Test Docker container to run PostgreSQL pipeline
         run: |
           docker run --rm \
