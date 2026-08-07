@@ -58,3 +58,30 @@ jobs:
       - name: Test Docker container starts
         run: |
           docker run --rm shopsphere:1.0 postgres_pipeline
+
+      - name: Test Docker container to run PostgreSQL pipeline
+        run: |
+          docker run --rm \
+          -e SOURCE_POSTGRES_HOST="${{ secrets.SOURCE_POSTGRES_HOST }}" \
+          -e SOURCE_POSTGRES_PORT="${{ secrets.SOURCE_POSTGRES_PORT }}" \
+          -e SOURCE_POSTGRES_DB="${{ secrets.SOURCE_POSTGRES_DB }}" \
+          -e SOURCE_POSTGRES_USER="${{ secrets.SOURCE_POSTGRES_USER }}" \
+          -e SOURCE_POSTGRES_PASSWORD="${{ secrets.SOURCE_POSTGRES_PASSWORD }}" \
+          -e MONGO_INITDB_ROOT_USERNAME="${{ secrets.MONGO_INITDB_ROOT_USERNAME }}" \
+          -e MONGO_INITDB_ROOT_PASSWORD="${{ secrets.MONGO_INITDB_ROOT_PASSWORD }}" \
+          -e MONGODB_URI="${{ secrets.MONGODB_URI }}" \
+          -e MONGODB_DATABASE="${{ secrets.MONGODB_DATABASE }}" \
+          -e MOCK_API_BASE_URL="${{ secrets.MOCK_API_BASE_URL }}" \
+          -e MINIO_ENDPOINT="${{ secrets.MINIO_ENDPOINT }}" \
+          -e MINIO_ROOT_USER="${{ secrets.MINIO_ROOT_USER }}" \
+          -e MINIO_ROOT_PASSWORD="${{ secrets.MINIO_ROOT_PASSWORD }}" \
+          -e MINIO_ACCESS_KEY="${{ secrets.MINIO_ACCESS_KEY }}" \
+          -e MINIO_SECRET_KEY="${{ secrets.MINIO_SECRET_KEY }}" \
+          -e MINIO_SECURE="${{ secrets.MINIO_SECURE }}" \
+          -e MINIO_BUCKET="${{ secrets.MINIO_BUCKET }}" \
+          -e WAREHOUSE_POSTGRES_HOST="${{ secrets.WAREHOUSE_POSTGRES_HOST }}" \
+          -e WAREHOUSE_POSTGRES_PORT="${{ secrets.WAREHOUSE_POSTGRES_PORT }}" \
+          -e WAREHOUSE_POSTGRES_DB="${{ secrets.WAREHOUSE_POSTGRES_DB }}" \
+          -e WAREHOUSE_POSTGRES_USER="${{ secrets.WAREHOUSE_POSTGRES_USER }}" \
+          -e WAREHOUSE_POSTGRES_PASSWORD="${{ secrets.WAREHOUSE_POSTGRES_PASSWORD }}" \
+          shopsphere:1.0 postgres_pipeline
