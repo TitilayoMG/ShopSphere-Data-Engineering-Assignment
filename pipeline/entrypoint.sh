@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-PIPELINES_DIR="/app/pipeline"
+PIPELINES_DIR="/app"
 
 usage() {
     echo "Usage:"

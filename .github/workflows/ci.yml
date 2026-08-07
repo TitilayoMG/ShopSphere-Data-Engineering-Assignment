@@ -57,4 +57,4 @@ jobs:
 
       - name: Test Docker container starts
         run: |
-          docker run --rm shopsphere:1.0 python --version
+          docker run --rm shopsphere:1.0 postgres_pipeline
