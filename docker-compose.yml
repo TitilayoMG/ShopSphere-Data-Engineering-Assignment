@@ -91,7 +91,7 @@ services:
   pipeline:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: ./pipeline/Dockerfile
     container_name: shopsphere-pipeline
     env_file:
       - .env

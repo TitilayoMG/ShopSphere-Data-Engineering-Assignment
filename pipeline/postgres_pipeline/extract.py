@@ -15,13 +15,14 @@ from bson import ObjectId
 from dotenv import load_dotenv
 from pymongo import MongoClient
 import requests
-from pipeline.postgres_pipeline.utils import (
+from pipeline.utils import (
     get_minio_client,
     get_postgres_connection,
     read_minio_watermark,
     records_to_parquet_buffer,
     upload_to_minio,
     write_minio_watermark,
+    load_config
 )
 
 load_dotenv()
@@ -34,22 +35,6 @@ logging.basicConfig(
     format="%(asctime)s | %(levelname)s | %(message)s"
 )
 logger = logging.getLogger(__name__)
-
-# -------------------------
-# CONFIG
-# -------------------------
-def load_config():
-    """
-    Load config.json once and unpack the values so they
-    can be used anywhere in this file.
-    """
-    config_path = Path(__file__).parent / "config.json"
-    with open(config_path, "r") as file:
-        config = json.load(file)
-    return (
-        config["data_sources"],
-        config["chunk_size"]
-    )
 
 # -------------------------
 # Variables

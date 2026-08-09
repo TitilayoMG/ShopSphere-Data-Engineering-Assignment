@@ -74,3 +74,9 @@ Optional bonus
 - Support a pipeline registry containing names and descriptions.
 - Add a `run-all` command with clear failure behavior.
 - Run the container as a non-root user.
+
+
+
+
+docker compose build --no-cache pipeline
+docker compose run --rm pipeline postgres_pipeline

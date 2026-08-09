@@ -52,7 +52,7 @@ jobs:
 
       - name: Build Docker image
         run: |
-          docker build -t shopsphere:1.0 -f pipeline/Dockerfile .
+          docker build -t shopsphere:1.1 -f pipeline/Dockerfile .
 
       # - name: Test Docker container to run PostgreSQL pipeline
       #   run: |

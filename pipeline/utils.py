@@ -5,6 +5,7 @@ import io
 import json
 import logging
 import os
+from pathlib import Path
 
 import pandas as pd
 import psycopg2
@@ -274,6 +275,20 @@ def update_pipeline_watermark(cursor, pipeline_name, source_name, watermark_colu
     """, (pipeline_name, source_name, watermark_column, watermark_value))
 
 
-
+# -------------------------
+# CONFIG
+# -------------------------
+def load_config():
+    """
+    Load config.json once and unpack the values so they
+    can be used anywhere in this file.
+    """
+    config_path = Path(__file__).parent / "config.json"
+    with open(config_path, "r") as file:
+        config = json.load(file)
+    return (
+        config["data_sources"],
+        config["chunk_size"]
+    )
 
 

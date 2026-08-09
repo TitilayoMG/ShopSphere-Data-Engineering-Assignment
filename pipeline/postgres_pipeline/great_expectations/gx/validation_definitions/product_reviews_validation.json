@@ -1,0 +1,22 @@
+{
+  "data": {
+    "asset": {
+      "id": "992725b8-1fd8-4728-bb73-a10867cd2ce0",
+      "name": "product_reviews"
+    },
+    "batch_definition": {
+      "id": "3dc0cea6-e7fc-42f5-bbaf-f5530eb22745",
+      "name": "product_reviews_batch"
+    },
+    "datasource": {
+      "id": "7753cad2-5a23-4e3b-a66e-a54356927520",
+      "name": "shopsphere_datasource"
+    }
+  },
+  "id": "c2de912e-9bac-4ff4-8d8c-12149f5d6d76",
+  "name": "product_reviews_validation",
+  "suite": {
+    "id": "da601f7d-13a9-4063-9f46-09a7badbd964",
+    "name": "product_reviews"
+  }
+}

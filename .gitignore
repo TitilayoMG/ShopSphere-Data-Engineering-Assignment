@@ -13,3 +13,4 @@ pipeline/postgres_pipeline/source_data.txt
 pipeline/postgres_pipeline/warehouse_ddl.sql
 pipeline/postgres_pipeline/load_trial.py
 run_pipeline.sh
+pipeline/postgres_pipeline/warehouse_stg_ddl.sql

@@ -1,0 +1,21 @@
+{
+  "chunk_size": 100,
+  "data_sources": {
+    "fast_api": {
+      "datasets": [
+        {
+          "table": "carriers",
+          "endpoint": "/api/v1/carriers",
+          "paginated": false,
+          "primary_key": ["carrier_id"]
+        },
+        {
+          "table": "shipments",
+          "endpoint": "/api/v1/shipments",
+          "paginated": true,
+          "primary_key": ["shipment_id", "event_time"]
+        }
+      ]
+    }
+  }
+}
