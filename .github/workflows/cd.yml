@@ -29,4 +29,4 @@ jobs:
           context: .
           file: ./pipeline/Dockerfile
           push: true
-          tags: madina345/shopsphere:1.1
+          tags: madina345/shopsphere:1.2
