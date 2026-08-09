@@ -17,6 +17,7 @@ from pipeline.utils import (
     read_pipeline_runs,
     start_pipeline_run,
     update_pipeline_watermark,
+    load_config
 )
 
 # -------------------------
@@ -31,18 +32,6 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 # Load All Tables in Minio processed/ path
 # ============================================================================
-def load_config():
-    """
-    Load config.json once and unpack the values so they
-    can be used anywhere in this file.
-    """
-    config_path = Path(__file__).parent / "config.json"
-    with open(config_path, "r") as file:
-        config = json.load(file)
-    return (
-        config["data_sources"],
-        config["chunk_size"]
-    )
 
 DATA_SOURCES, CHUNK_SIZE = load_config()
 
@@ -201,3 +190,5 @@ def load_all_data_source_files():
         cursor.close()
         conn.close()
 
+if __name__ == "__main__":
+    load_all_data_source_files()

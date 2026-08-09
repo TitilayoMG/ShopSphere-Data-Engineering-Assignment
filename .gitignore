@@ -5,10 +5,12 @@ venv/
 tests/__pycache__/
 local_data/
 .pytest_cache/
-pipeline/data_quality.py
-pipeline/extracts.py
+pipeline/postgres_pipeline/data_quality.py
+pipeline/postgres_pipeline/extracts.py
 pipeline/great_expectations/customer_sessions.json
 pipeline/great_expectations/product_reviews.json
-pipeline/source_data.txt
-pipeline/warehouse_ddl.sql
-pipeline/load_trial.py
+pipeline/postgres_pipeline/source_data.txt
+pipeline/postgres_pipeline/warehouse_ddl.sql
+pipeline/postgres_pipeline/load_trial.py
+run_pipeline.sh
+pipeline/postgres_pipeline/warehouse_stg_ddl.sql

@@ -4,7 +4,7 @@ import pytest
 from unittest.mock import Mock 
 
 
-from pipeline import extract
+from pipeline.postgres_pipeline import extract
 
 
 

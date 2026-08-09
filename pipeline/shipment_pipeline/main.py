@@ -3,19 +3,11 @@
 
 import logging
 
-from pipeline.extract import (
-    api_extraction,
-    mongodb_extraction,
-    postgres_extraction,
-)
+from pipeline.shipment_pipeline.extract import shipments_extraction
 
-from pipeline.transform import (
-    transform_api,
-    transform_mongodb,
-    transform_postgres,
-)
+from pipeline.shipment_pipeline.transform import transform_shipments_data
 
-from pipeline.load import load_all_data_source_files
+from pipeline.shipment_pipeline.load import load_shipments_data
 
 
 logger = logging.getLogger(__name__)
@@ -28,23 +20,19 @@ def run_pipeline():
         logger.info("STARTING EXTRACTION")
         logger.info("=" * 80)
 
-        postgres_extraction()
-        mongodb_extraction()
-        api_extraction()
+        shipments_extraction()
 
         logger.info("=" * 80)
         logger.info("STARTING TRANSFORMATION")
         logger.info("=" * 80)
 
-        transform_postgres()
-        transform_mongodb()
-        transform_api()
+        transform_shipments_data()
 
         logger.info("=" * 80)
         logger.info("STARTING LOADING")
         logger.info("=" * 80)
 
-        load_all_data_source_files()
+        load_shipments_data()
 
         logger.info("=" * 80)
         logger.info("PIPELINE COMPLETED SUCCESSFULLY")

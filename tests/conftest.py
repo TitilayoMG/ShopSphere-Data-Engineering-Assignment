@@ -2,7 +2,7 @@
 import io
 import pandas as pd
 import pytest
-from pipeline import transform
+from pipeline.postgres_pipeline import transform
 from unittest.mock import Mock
 
 

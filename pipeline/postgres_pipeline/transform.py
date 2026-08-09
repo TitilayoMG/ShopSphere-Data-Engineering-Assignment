@@ -8,7 +8,7 @@ from io import BytesIO
 import pandas as pd
 
 from pipeline.utils import get_minio_client, upload_to_minio
-from pipeline.data_validation_gx import DataQualityValidator
+from pipeline.postgres_pipeline.data_validation_gx import DataQualityValidator
 
 # -------------------------
 # LOGGING
@@ -532,6 +532,7 @@ def transform_api():
         logger.exception(f"API transformation failed")
         raise
 
-# if __name__ == "__main__":
-#     transform_mongodb() 
-#     transform_api()
+if __name__ == "__main__":
+    transform_postgres()
+    transform_mongodb() 
+    transform_api()

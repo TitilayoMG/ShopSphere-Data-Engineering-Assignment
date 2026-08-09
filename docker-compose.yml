@@ -90,8 +90,8 @@ services:
 
   pipeline:
     build:
-      context: ./pipeline
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./pipeline/Dockerfile
     container_name: shopsphere-pipeline
     env_file:
       - .env
