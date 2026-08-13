@@ -14,3 +14,6 @@ pipeline/postgres_pipeline/warehouse_ddl.sql
 pipeline/postgres_pipeline/load_trial.py
 run_pipeline.sh
 pipeline/postgres_pipeline/warehouse_stg_ddl.sql
+pipeline/postgres_pipeline/__pycache__/
+pipeline/shipment_pipeline/__pycache__/
+*.pyc

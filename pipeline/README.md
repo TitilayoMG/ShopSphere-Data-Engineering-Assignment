@@ -8,7 +8,7 @@ separately inside each pipeline's own folder.
 ## Table of Contents
 
 - [Available Pipelines](#available-pipelines)
-- [Repository / Image Layout](#repository--image-layout)
+- [Repository](#repository--image-layout)
 - [Pipeline Entry-Point Convention](#pipeline-entry-point-convention)
 - [How Pipeline Selection Works](#how-pipeline-selection-works)
 - [Building the Image](#building-the-image)
@@ -50,7 +50,7 @@ run any of them by name.
 ├── pipelines/
 │   ├── __init__.py
 │   ├── postgres_pipeline/  
-│   └── shipment_pipeline/     # folder-style pipeline
+│   └── shipment_pipeline/     
 │       ├── __init__.py
 │       ├── main.py            
 │       ├── extract.py
@@ -60,8 +60,8 @@ run any of them by name.
 │   └── entrypoint.sh  
 |
 ├── tests/
-│   ├── test_registry.py       # unit tests for name resolution / traversal guard
-│   └── test_entrypoint.py     # integration tests for the CLI runner
+│   ├── test_api_transformation.py       
+│   └── test_extract.py     
 ├── requirements.txt
 ├── .env.example
 └── README.md
@@ -75,19 +75,9 @@ protection straightforward
 
 ## Pipeline Entry-Point Convention
 
-Two shapes are supported, and both are auto-discovered — nothing needs to be
-registered by hand in most cases:
-
-1. **Single-file pipeline**
-   `pipelines/<name>.py`
-   Must expose a `main()` function (
-
-2. **Folder pipeline**
-   `pipelines/<name>/main.py`
+   **Folder pipeline**
+   `pipeline/<pipeline_name>/main.py`
    Same contract: a `main()` function the runner can invoke, 
-
-Both shapes are run the same way from the outside — the caller doesn't need
-to know or care which one a given pipeline uses.
 
 ---
 
@@ -96,13 +86,13 @@ to know or care which one a given pipeline uses.
 `entrypoint.sh` is the image's `ENTRYPOINT`. It receives the
 container's arguments directly from `docker run` and does the following:
 
-1. **No argument, or `-h` / `--help` / `list`** → print usage and the list of
-   available pipeline names (from `pipelines/registry.py`), exit `0`.
+1. **No argument, or `-h` / `--help` / `list`** → print usage, the list of
+   available pipeline names and their description, exit `0`.
 2. **First argument = pipeline name** (with or without `.py`):
    - Normalize the name: strip a trailing `.py` if present.
-   - Look up the normalized name in the pipeline registry, which enumerates
-     only folders directly inside `pipelines/` matching the entry-point
-     convention above (`pipelines/<name>.py` or `pipelines/<name>/main.py`).
+   - Look up the normalized name in the pipeline, which enumerates
+     only folders directly inside `pipeline/` matching the entry-point
+     convention above (`pipeline/<pipeline_name>`).
    - Reject the name if it isn't an exact, unambiguous match — no partial or
      fuzzy matching. This also naturally blocks path traversal: names
      containing `/`, `..`, or absolute paths are never looked up against the
@@ -153,7 +143,7 @@ docker run --rm \
 ```
 
 - `--network shopsphere-net` puts the pipeline container on the same Docker
-  network as `postgres`, `mongo`, `minio`, and `swiftdrop`, so hostnames like
+  network as `postgres`, `mongo`, `minio`, and `swiftdrop API`, so hostnames like
   `postgres`, `minio`, etc. resolve exactly as they do for those services.
 - `--env-file .env` supplies every connection setting (DB host/port/user/
   password, MinIO endpoint/keys, SwiftDrop base URL/key, warehouse
@@ -174,12 +164,12 @@ docker run --rm --network shopsphere-net --env-file .env pipeline postgres_pipel
 # .py form
 docker run --rm --network shopsphere-net --env-file .env pipeline postgres_pipeline.py
 
-# folder-style pipeline, same two forms
+# for shipment pipeline, same two forms
 docker run --rm --network shopsphere-net --env-file .env pipeline shipment_pipeline
 docker run --rm --network shopsphere-net --env-file .env pipeline shipment_pipeline.py
 ```
 
-An unknown name fails fast with a helpful message and a non-zero exit code:
+An unknown name fails fast with a helpful message, list of available pipelines, their descriptions and a non-zero exit code:
 
 ```bash
 $ docker run --rm --network shopsphere-net --env-file .env pipeline nonexistent_pipeline
@@ -206,8 +196,7 @@ Listing the available pipelines doesn't touch any source system, so
 `--network` and `--env-file` aren't required for these forms (though passing
 them is harmless).
 
-All three print the same registry-derived list, so it can never drift out of
-sync with what's actually in the image.
+All three print the same list, so it can never drift out of sync with what's actually in the image.
 
 ---
 
@@ -254,7 +243,7 @@ docker run --rm --network shopsphere-net --env-file .env pipeline postgres_pipel
 ```
 
 will still run postgres_pipeline, but argument1 and argument2 have no effect on the pipeline's behavior.
-Extra-argument support is provided by the entrypoint so that pipelines can implement their own argument handling in the future.
+
 ---
 
 ## Error Handling & Exit Codes
@@ -291,22 +280,19 @@ use to talk to each other.
 
 ## Adding a New Pipeline
 
-1. Create either:
+1. Create:
    - `pipelines/<new_pipeline_name>/main.py` with a `main()` function 
 2. Confirm it shows up and runs:
    ```bash
-   docker run --rm pipeline list
+   docker run pipeline list
    docker run --rm --network shopsphere-net --env-file .env pipeline <new_name>
    ```
-5. Add a corresponding test to `tests` and,
-   if the pipeline has meaningful transformation logic, a transformation test
-   alongside it.
+5. Add a transformation test to `tests` if the pipeline has meaningful transformation logic
 
 ---
 
 ## Non-Root Execution
 The current pipeline container does not explicitly configure a non-root user.
-Therefore, the pipeline and entrypoint currently execute using the default user configured by the base `Docker image`.
 
 `Non-root` execution has not yet been implemented. This should be addressed in a future improvement to run the container with a dedicated unprivileged user and improve container security.
 

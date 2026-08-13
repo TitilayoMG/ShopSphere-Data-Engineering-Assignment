@@ -69,8 +69,8 @@ If any stage raises an exception, the whole run fails loudly (logged and re-rais
   "chunk_size": 100,
   "data_sources": {
     "postgres": { "tables": [...] },
-    "mongodb":  { "collections": [...] },
-    "fast_api": { "endpoints": [...] }
+    "mongodb":  { "tables": [...] },
+    "fast_api": { "tables": [...] }
   }
 }
 ```

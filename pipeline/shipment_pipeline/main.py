@@ -4,9 +4,7 @@
 import logging
 
 from pipeline.shipment_pipeline.extract import shipments_extraction
-
 from pipeline.shipment_pipeline.transform import transform_shipments_data
-
 from pipeline.shipment_pipeline.load import load_shipments_data
 
 

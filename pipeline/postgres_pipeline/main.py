@@ -1,6 +1,4 @@
 
-
-
 import logging
 
 from pipeline.postgres_pipeline.extract import (

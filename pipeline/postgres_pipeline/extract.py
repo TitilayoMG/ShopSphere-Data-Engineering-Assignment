@@ -284,9 +284,8 @@ def mongodb_extraction():
 
                 file_number += 1
                 batch = []
-        #
+        
         # Remaining documents
-        #
         if batch:
             _df, buffer= records_to_parquet_buffer(batch)
 
@@ -454,7 +453,7 @@ def api_extraction():
     logger.info("=" * 80)
 
 
-if __name__ == "__main__":
-    postgres_extraction() 
-    mongodb_extraction()
-    api_extraction()
+# if __name__ == "__main__":
+#     postgres_extraction() 
+#     mongodb_extraction()
+#     api_extraction()

@@ -190,5 +190,5 @@ def load_all_data_source_files():
         cursor.close()
         conn.close()
 
-if __name__ == "__main__":
-    load_all_data_source_files()
+# if __name__ == "__main__":
+#     load_all_data_source_files()
