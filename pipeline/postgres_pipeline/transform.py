@@ -53,12 +53,12 @@ def transform_postgres():
         deleted_files = 0
         for obj in objects:
             object_name = obj.object_name
-            # Ignore directories and non-parquet files
+            
             if object_name.endswith("/") or not object_name.endswith(".parquet"):
                 continue
             logger.info(f"Reading {object_name}")
             try:
-                # Read parquet from MinIO
+               
                 response = client.get_object(bucket, object_name)
                 buffer = io.BytesIO(response.read())
                 df = pd.read_parquet(buffer)
@@ -99,7 +99,7 @@ def transform_postgres():
                     engine="pyarrow",
                     index=False,
                 )
-                # Destination path: processed/file.parquet
+                
                 filename = parts[-1]
                 destination = f"processed/postgres/{table_name}/{filename}"
 
@@ -117,7 +117,6 @@ def transform_postgres():
                 # client.remove_object(bucket, object_name)
                 # deleted_files += 1
 
-            
             except Exception:
                 logger.exception(f"Failed transforming {object_name}")
                 raise
@@ -155,7 +154,6 @@ def transform_mongodb():
     client, bucket = get_minio_client()
     validator = DataQualityValidator()
 
-
     try:
         objects = client.list_objects(
             bucket,
@@ -189,7 +187,6 @@ def transform_mongodb():
             #     f"({len(df.columns)} columns)"
             # )
 
-            # CUSTOMER SESSIONS
             if collection == "customer_sessions":
                 rows_before = len(df)
 
@@ -317,7 +314,6 @@ def transform_mongodb():
                 logger.warning(f"Unknown collection '{collection}'")
                 continue
 
-            # Write parquet
             output_buffer = BytesIO()
             df.to_parquet(
                 output_buffer,
@@ -352,8 +348,6 @@ def transform_mongodb():
         logger.exception("MongoDB transformation failed")
         raise
               
-
-
 
 # =====================================================================
 # API Transformations
@@ -395,7 +389,6 @@ def transform_api():
         for obj in objects:
             object_name = obj.object_name
 
-            # Ignore folders and non-parquet files
             if object_name.endswith("/") or not object_name.endswith(".parquet"):
                 continue
 
@@ -479,7 +472,6 @@ def transform_api():
             elif table_name == "carriers":
                 rows_before = len(df)
 
-                # Remove duplicate rows
                 df = df.drop_duplicates()
                 duplicates_removed = rows_before - len(df)
 
@@ -499,7 +491,6 @@ def transform_api():
                 logger.warning(f"Unknown table '{table_name}'")
                 continue
 
-            
             # Write processed parquet
             output_buffer = BytesIO()
             df.to_parquet(
@@ -532,7 +523,7 @@ def transform_api():
         logger.exception(f"API transformation failed")
         raise
 
-if __name__ == "__main__":
-    transform_postgres()
-    transform_mongodb() 
-    transform_api()
+# if __name__ == "__main__":
+#     transform_postgres()
+#     transform_mongodb() 
+#     transform_api()
