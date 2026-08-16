@@ -78,36 +78,6 @@
           ]
         }
       ]
-    },
-
-    "mongodb": {
-      "datasets": [
-        {
-          "table": "customer_sessions",
-          "primary_key": ["_id", "event_type"]
-        },
-        {
-          "table": "product_reviews",
-          "primary_key": ["_id", "product_id"]
-        }
-      ]
-    },
-
-    "fast_api": {
-      "datasets": [
-        {
-          "table": "carriers",
-          "endpoint": "/api/v1/carriers",
-          "paginated": false,
-          "primary_key": ["carrier_id"]
-        },
-        {
-          "table": "shipments",
-          "endpoint": "/api/v1/shipments",
-          "paginated": true,
-          "primary_key": ["shipment_id", "event_time"]
-        }
-      ]
     }
   }
 }

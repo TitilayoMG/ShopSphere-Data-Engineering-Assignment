@@ -6,7 +6,7 @@ COPY pipeline/requirements.txt .
 
 # RUN python -m pip install --upgrade pip
 
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --default-timeout=1200 --no-cache-dir -r requirements.txt
 
 COPY . .
 RUN chmod +x /app/pipeline/entrypoint.sh

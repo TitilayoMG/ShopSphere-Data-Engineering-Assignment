@@ -28,21 +28,21 @@ def run_pipeline():
 
         postgres_extraction()
         mongodb_extraction()
-        api_extraction()
+        # api_extraction()
 
         logger.info("=" * 80)
         logger.info("STARTING TRANSFORMATION")
         logger.info("=" * 80)
 
-        transform_postgres()
-        transform_mongodb()
-        transform_api()
+        # transform_postgres()
+        # transform_mongodb()
+        # transform_api()
 
         logger.info("=" * 80)
         logger.info("STARTING LOADING")
         logger.info("=" * 80)
 
-        load_all_data_source_files()
+        # load_all_data_source_files()
 
         logger.info("=" * 80)
         logger.info("PIPELINE COMPLETED SUCCESSFULLY")
