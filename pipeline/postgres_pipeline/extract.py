@@ -1,12 +1,12 @@
 # -------------------------
 # imports: Standard Libraries
 # -------------------------
-import json
+import io
 import logging
 import os
 import time
 from datetime import datetime, timezone
-from pathlib import Path
+import pandas as pd
 from bson import ObjectId
 
 # -------------------------
@@ -41,7 +41,6 @@ logger = logging.getLogger(__name__)
 # -------------------------
 DATA_SOURCES, CHUNK_SIZE = load_config()
 
-
 # =====================================================================
 # DATA SOURCE 1: Postgres
 # =====================================================================
@@ -72,129 +71,138 @@ def postgres_extraction():
     general_total_rows = 0
     total_files = 0
 
-    for dataset in DATA_SOURCES["postgres"]["datasets"]:
-        table = dataset["table"]
-        logger.info(f"Starting extraction for table '{table}'")
-       
-        cursor = postgres_conn.cursor()
-        cursor.execute(f"SELECT * FROM {table} LIMIT 0")
-        columns = [col[0] for col in cursor.description]
-        cursor.close()
+    try:
+        for dataset in DATA_SOURCES["postgres"]["datasets"]:
+            table = dataset["table"]
+            primary_key = dataset['primary_key']
+            primary_key = ", ".join(primary_key)
+            columns = dataset['columns']
+            columns_list = ", ".join(columns)
+            logger.info(f"Starting extraction for table '{table}'")
+
+            cursor = None
+            try:
+                cursor = postgres_conn.cursor(name=f"{table}_cursor") #server-side cursor
+                cursor.itersize = CHUNK_SIZE
+            
+                if table == "order_items":
+                    last_file_number = 0
+                    logger.info("order_items has no updated_at column. Performing full extraction.")
+                    cursor.execute(f"SELECT {columns_list} FROM {table}")
+                else:
+                    watermark, last_file_number = read_minio_watermark(
+                        minio_client,
+                        bucket,
+                        source="postgres",
+                        object_name=table,
+                        field="updated_at"
+                    )
+
+                    if watermark:
+                        logger.info(f"Incremental extraction using watermark: {watermark}")
+                        cursor.execute(
+                            f"""
+                            SELECT {columns_list}
+                            FROM {table}
+                            WHERE updated_at > %s
+                            ORDER BY updated_at, {primary_key}
+                            """,
+                            (watermark,)
+                        )
+                    else:
+                        logger.info("No watermark found. Performing full extraction.")
+                        cursor.execute(
+                            f"""
+                            SELECT {columns_list}
+                            FROM {table}
+                            ORDER BY updated_at, {primary_key}
+                            """
+                        )
+                datetimestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S_%f")[:-3]
+                
+                file_number = last_file_number + 1
+                table_rows = 0
+                latest_updated_at = None
+
+                while True:
+                    rows = cursor.fetchmany(CHUNK_SIZE) # track the last row loaded to ensure it doesnt reload same rows
+                    if not rows:
+                        break
+                    table_rows += len(rows)
+                    general_total_rows += len(rows)
+
+                    if table != "order_items":
+                        updated_index = columns.index("updated_at")
+                        page_latest = max(
+                            row[updated_index]
+                            for row in rows
+                            if row[updated_index] is not None
+                        )
+                        if (latest_updated_at is None or page_latest > latest_updated_at):
+                            latest_updated_at = page_latest
+            
+                    df = pd.DataFrame.from_records(rows, columns=columns)
+                    buffer = io.BytesIO()
+                    df.to_parquet(buffer, engine="pyarrow", index=False)
+                    buffer.seek(0)
+
+                    object_name = (f"raw/postgres/{table}/{table}_{datetimestamp}_{file_number}.parquet") #file number should always start from 1 for every 1
+
+                    upload_to_minio(
+                        minio_client,
+                        bucket,
+                        object_name,
+                        buffer
+                    )
+                    logger.info(
+                        f"{table} | file={file_number} | "
+                        f"rows={len(rows):,} | "
+                        f"size={buffer.getbuffer().nbytes:,} bytes"
+                    )
+
+                    total_files += 1
+                    file_number += 1
+
+                    if table != "order_items" and latest_updated_at:
+                        write_minio_watermark(
+                            minio_client,
+                            bucket,
+                            source="postgres",
+                            object_name=table,
+                            field="updated_at",
+                            value=latest_updated_at.isoformat(),
+                            file_number=file_number - 1
+                        )
+
+                        logger.info(
+                            f"Updated watermark for {table}: {latest_updated_at.isoformat()} | "
+                            f"file_number={file_number - 1}"
+                        )
+
+            except Exception:
+                logger.exception(f"Postgres Extraction failed for table '{table}'")
+
+            finally:
+                if cursor is not None:
+                    cursor.close()
+
+        elapsed = round(time.time() - start_time, 2)
+        logger.info("=" * 60)
+        logger.info("POSTGRES EXTRACTION COMPLETED")
+        logger.info(f"Total Rows       : {general_total_rows:,}")
+        logger.info(f"Total Files      : {total_files}")
+        logger.info(f"Execution Time   : {elapsed} seconds")
+        logger.info("=" * 60)
+
+    except Exception:
+        logger.exception("POSTGRES EXTRACTION FAILED")
+        raise 
+
+    finally:
+        postgres_conn.close()
         
-        cursor = postgres_conn.cursor(name=f"{table}_cursor")
-        cursor.itersize = CHUNK_SIZE
 
-        if table == "order_items":
-            last_file_number = 0
-            logger.info("order_items has no updated_at column. Performing full extraction.")
-            cursor.execute(f"SELECT * FROM {table}")
-        else:
-            watermark, last_file_number = read_minio_watermark(
-                minio_client,
-                bucket,
-                source="postgres",
-                object_name=table,
-                field="updated_at"
-            )
-
-            if watermark:
-                logger.info(f"Incremental extraction using watermark: {watermark}")
-                cursor.execute(
-                    f"""
-                    SELECT * 
-                    FROM {table}
-                    WHERE updated_at > %s
-                    ORDER BY updated_at
-                    """,
-                    (watermark,)
-                ) # list all columns instead of *
-            else:
-                logger.info("No watermark found. Performing full extraction.")
-                cursor.execute(
-                    f"""
-                    SELECT *
-                    FROM {table}
-                    ORDER BY updated_at
-                    """
-                )
-        datetimestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S_%f")[:-3]
-        
-        file_number = last_file_number + 1
-        table_rows = 0
-        latest_updated_at = None
-
-        while True:
-            rows = cursor.fetchmany(CHUNK_SIZE) # track the last row loaded to ensure it doesnt reload same rows
-            if not rows:
-                break
-            table_rows += len(rows)
-            general_total_rows += len(rows)
-
-            records = [dict(zip(columns, row)) for row in rows]
-            if table != "order_items":
-                updated_index = columns.index("updated_at")
-                page_latest = max(
-                    row[updated_index]
-                    for row in rows
-                    if row[updated_index] is not None
-                )
-                if (latest_updated_at is None or page_latest > latest_updated_at):
-                    latest_updated_at = page_latest
-    
-            _df, buffer= records_to_parquet_buffer(records)
-
-            object_name = (f"raw/postgres/{table}/{table}_{datetimestamp}_{file_number}.parquet") #file number should always start from 1 for every 1
-
-            upload_to_minio(
-                minio_client,
-                bucket,
-                object_name,
-                buffer
-            )
-            logger.info(
-                f"{table} | file={file_number} | "
-                f"rows={len(rows):,} | "
-                f"size={buffer.getbuffer().nbytes:,} bytes"
-            )
-
-            total_files += 1
-            file_number += 1
-
-        cursor.close()
-        if table != "order_items" and latest_updated_at:
-            write_minio_watermark(
-                minio_client,
-                bucket,
-                source="postgres",
-                object_name=table,
-                field="updated_at",
-                value=latest_updated_at.isoformat(),
-                file_number=file_number - 1
-            )
-
-            logger.info(
-                f"Updated watermark for {table}: {latest_updated_at.isoformat()} | "
-                f"file_number={file_number - 1}"
-            )
-
-        logger.info(
-            f"Completed table '{table}' | "
-            f"Rows={table_rows:,} | "
-            f"Files={file_number - 1}"
-        )
-
-    postgres_conn.close()
-    elapsed = round(time.time() - start_time, 2)
-
-    logger.info("=" * 60)
-    logger.info("POSTGRES EXTRACTION COMPLETED")
-    logger.info(f"Total Rows       : {general_total_rows:,}")
-    logger.info(f"Total Files      : {total_files}")
-    logger.info(f"Execution Time   : {elapsed} seconds")
-    logger.info("=" * 60)
-
-
-
+   
 # =====================================================================
 # DATA SOURCE 2: MongoDB
 # =====================================================================
@@ -215,7 +223,6 @@ def mongodb_extraction():
     - Log per-collection and overall extraction statistics.
     - Close database connections and release resources.
     """
-
     start_time = time.time()
     minio_client, bucket = get_minio_client()
     mongo_client = MongoClient(os.getenv("MONGODB_URI"))
@@ -224,119 +231,134 @@ def mongodb_extraction():
 
     total_documents = 0
     total_files = 0
-
-    for collection in DATA_SOURCES["mongodb"]["datasets"]:
-        collection_name = collection["table"]
-        logger.info(f"Starting extraction for collection '{collection_name}'")
-        watermark, last_file_number = read_minio_watermark(
-                minio_client,
-                bucket,
-                source="mongodb",
-                object_name=collection_name,
-                field="last_loaded_object_id"
-            )
-
-        collection = database[collection_name]
-
-        query = {}
-        if watermark:
-            query["_id"] = {"$gt": ObjectId(watermark)}
-        cursor = (
-            collection.find(query, no_cursor_timeout=True)
-            .sort("_id", 1)
-            .batch_size(CHUNK_SIZE)
-        )
-        file_number = last_file_number + 1
-        datetimestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S_%f")[:-3]
-
-        collection_documents = 0
-        batch = []
-        latest_object_id = watermark
-
-        for document in cursor:
-            if latest_object_id is None or document["_id"] > ObjectId(latest_object_id):
-                latest_object_id = str(document["_id"])
-
-            document["_id"] = str(document["_id"])
-            batch.append(document)
-
-            if len(batch) == CHUNK_SIZE:
-                _df, buffer= records_to_parquet_buffer(batch)
-
-                object_name = (f"raw/mongodb/{collection_name}/{collection_name}_{datetimestamp}_{file_number}.parquet")
-
-                upload_to_minio(
+    try:
+        for dataset in DATA_SOURCES["mongodb"]["datasets"]:
+            collection_name = dataset["table"]
+            logger.info(f"Starting extraction for collection '{collection_name}'")
+            watermark, last_file_number = read_minio_watermark(
                     minio_client,
                     bucket,
-                    object_name,
-                    buffer
-                )
-                logger.info(
-                    f"{collection_name} | "
-                    f"file={file_number} | "
-                    f"documents={len(batch):,} | "
-                    f"size={buffer.getbuffer().nbytes:,} bytes"
+                    source="mongodb",
+                    object_name=collection_name,
+                    field="last_loaded_object_id"
                 )
 
-                total_documents += len(batch)
-                collection_documents += len(batch)
-                total_files += 1
+            collection = database[collection_name]
 
-                file_number += 1
+            query = {}
+            if watermark:
+                query["_id"] = {"$gt": ObjectId(watermark)}
+
+            cursor = None
+            try:
+
+                cursor = (
+                    collection.find(query, no_cursor_timeout=True)
+                    .sort("_id", 1)
+                    .batch_size(CHUNK_SIZE)
+                )
+                file_number = last_file_number + 1
+                datetimestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S_%f")[:-3]
+
+                collection_documents = 0
                 batch = []
+                latest_object_id = watermark
+
+                for document in cursor:
+                    document["_id"] = str(document["_id"])
+                    batch.append(document)
+
+                    if len(batch) == CHUNK_SIZE:
+                        _df, buffer= records_to_parquet_buffer(batch)
+
+                        object_name = (f"raw/mongodb/{collection_name}/{collection_name}_{datetimestamp}_{file_number}.parquet")
+
+                        upload_to_minio(
+                            minio_client,
+                            bucket,
+                            object_name,
+                            buffer
+                        )
+
+                        latest_object_id = document["_id"]
+                        logger.info(
+                            f"{collection_name} | "
+                            f"file={file_number} | "
+                            f"documents={len(batch):,} | "
+                            f"size={buffer.getbuffer().nbytes:,} bytes"
+                        )
+
+                        total_documents += len(batch)
+                        collection_documents += len(batch)
+                        total_files += 1
+
+                        file_number += 1
+                        batch = []
+
+                # Remaining documents
+                if batch:
+                    _df, buffer= records_to_parquet_buffer(batch)
+
+                    object_name = (
+                        f"raw/mongodb/{collection_name}/"
+                        f"{collection_name}_{datetimestamp}_{file_number}.parquet"
+                    )
+                    upload_to_minio(
+                        minio_client,
+                        bucket,
+                        object_name,
+                        buffer
+                    )
+                    latest_object_id = str(document["_id"])
+                    logger.info(
+                        f"{collection_name} | "
+                        f"file={file_number} | "
+                        f"documents={len(batch):,} | "
+                        f"size={buffer.getbuffer().nbytes:,} bytes"
+                    )
+
+                    total_documents += len(batch)
+                    collection_documents += len(batch)
+                    total_files += 1
+                    file_number += 1
+
+                if latest_object_id and latest_object_id != watermark:
+                    write_minio_watermark(
+                        minio_client,
+                        bucket,
+                        source="mongodb",
+                        object_name=collection_name,
+                        field="last_loaded_object_id",
+                        value=latest_object_id,
+                        file_number=file_number - 1
+                    )
+
+            except Exception:
+                logger.exception(
+                    f"Mongodb Extraction failed for collection '{collection_name}'"
+                )
+                raise
+
+            finally:
+                if cursor is not None:
+                    cursor.close()
+               
+
+        elapsed = round(time.time() - start_time, 2)
+        logger.info("=" * 60)
+        logger.info("MONGODB EXTRACTION COMPLETED")
+        logger.info(f"Total Documents       : {total_documents:,}")
+        logger.info(f"Total Files           : {total_files}")
+        logger.info(f"Execution Time        : {elapsed} seconds")
+        logger.info("=" * 60)
+
+    except Exception:
+        logger.exception("MONGODB EXTRACTION FAILED")
+        raise 
+
+    finally:
+        mongo_client.close()
         
-        # Remaining documents
-        if batch:
-            _df, buffer= records_to_parquet_buffer(batch)
-
-            object_name = (
-                f"raw/mongodb/{collection_name}/"
-                f"{collection_name}_{datetimestamp}_{file_number}.parquet"
-            )
-            upload_to_minio(
-                minio_client,
-                bucket,
-                object_name,
-                buffer
-            )
-            logger.info(
-                f"{collection_name} | "
-                f"file={file_number} | "
-                f"documents={len(batch):,} | "
-                f"size={buffer.getbuffer().nbytes:,} bytes"
-            )
-
-            total_documents += len(batch)
-            collection_documents += len(batch)
-            total_files += 1
-
-        if latest_object_id and latest_object_id != watermark:
-            write_minio_watermark(
-                minio_client,
-                bucket,
-                source="mongodb",
-                object_name=collection_name,
-                field="last_loaded_object_id",
-                value=latest_object_id,
-                file_number=file_number - 1
-            )
-
-        cursor.close()
-        logger.info(
-            f"Completed collection '{collection_name}' | "
-            f"Documents={collection_documents:,} | "
-            f"Files={file_number}"
-        )
-
-    mongo_client.close()
-    elapsed = round(time.time() - start_time, 2)
-
-    logger.info("=" * 60)
-    logger.info("MONGODB EXTRACTION COMPLETED")
-    logger.info(f"Total Documents       : {total_documents:,}")
-    logger.info(f"Total Files           : {total_files}")
-    logger.info(f"Execution Time        : {elapsed} seconds")
-    logger.info("=" * 60)
 
 
 # =====================================================================
@@ -362,96 +384,102 @@ def api_extraction():
     minio_client, bucket = get_minio_client()
     logger.info("=" * 80)
     logger.info("Starting SwiftDrop API extraction")
+    try:
+        for endpoint in DATA_SOURCES["fast_api"]["datasets"]:
+            table = endpoint["table"]
+            logger.info(f"Extracting table: {table}")
 
-    for endpoint in DATA_SOURCES["fast_api"]["datasets"]:
-        table = endpoint["table"]
-        logger.info(f"Extracting table: {table}")
-
-        watermark, last_file_number = read_minio_watermark(
-            minio_client,
-            bucket,
-            source="fast_api",
-            object_name="shipments",
-            field="updated_since"
-        )
-        logger.info(f"Watermark: {watermark}")
-        
-        latest_updated_at = watermark
-        file_number = last_file_number + 1
-        page = 1
-        total_records = 0
-
-        while True:
-            params = {}
-            if endpoint["paginated"]:
-                params["page"] = page
-                params["limit"] = 100
-
-                if watermark:
-                    params["updated_since"] = watermark
-
-            response = requests.get(url=f"{base_url}{endpoint['endpoint']}", params=params, timeout=60)
-            response.raise_for_status()
-            payload = response.json()
-
-            if endpoint["paginated"]:
-                records = payload["shipments"]
-            else:
-                file_number = 1
-                records = payload
-
-            if not records:
-                logger.info(f"No more records found for {table}")
-                break
-
-            dataframe, parquet_buffer = records_to_parquet_buffer(records)
-            object_name = (f"raw/api/{table}/{table}_{datetimestamp}_{file_number}.parquet")
-
-            upload_to_minio(
-                client=minio_client,
-                bucket=bucket,
-                object_name=object_name,
-                buffer=parquet_buffer
+            watermark, last_file_number = read_minio_watermark(
+                minio_client,
+                bucket,
+                source="fast_api",
+                object_name="shipments",
+                field="updated_since"
             )
+            logger.info(f"Watermark: {watermark}")
+            
+            latest_updated_at = watermark
+            file_number = last_file_number + 1
+            page = 1
+            total_records = 0
 
-            logger.info(
-                f"{table} | "
-                f"file={file_number} | "
-                f"records={len(dataframe):,} | "
-                f"size={parquet_buffer.getbuffer().nbytes:,} bytes"
-            )
+            while True:
+                params = {}
+                if endpoint["paginated"]:
+                    params["page"] = page
+                    params["limit"] = 100
 
-            total_records += len(dataframe)
-            file_number += 1
+                    if watermark:
+                        params["updated_since"] = watermark
 
-            if endpoint["paginated"]:
-                updated_values = dataframe["updated_at"].dropna().tolist()
-                if updated_values:
-                    page_latest = max(updated_values)
-                    if (latest_updated_at is None or page_latest > latest_updated_at):
-                        latest_updated_at = page_latest
+                response = requests.get(url=f"{base_url}{endpoint['endpoint']}", params=params, timeout=60)
+                response.raise_for_status()
+                payload = response.json()
 
-                next_page = payload.get("next_page")
-                if next_page is None:
+                if endpoint["paginated"]:
+                    records = payload["shipments"]
+                else:
+                    file_number = 1
+                    records = payload
+
+                if not records:
+                    logger.info(f"No more records found for {table}")
                     break
-                page = next_page
-            else:
-                break
-        logger.info(f"{table}: extracted {total_records:,} records")
-    if latest_updated_at and latest_updated_at != watermark:
-        write_minio_watermark(
-            minio_client,
-            bucket,
-            source="fast_api",
-            object_name="shipments",
-            field="updated_since",
-            value=latest_updated_at,
-            file_number=file_number - 1
-        )
-        logger.info(f"Updated watermark to {latest_updated_at}")
-    logger.info("SwiftDrop API extraction completed")
-    logger.info("=" * 80)
 
+                dataframe, parquet_buffer = records_to_parquet_buffer(records)
+                object_name = (f"raw/api/{table}/{table}_{datetimestamp}_{file_number}.parquet")
+
+                upload_to_minio(
+                    client=minio_client,
+                    bucket=bucket,
+                    object_name=object_name,
+                    buffer=parquet_buffer
+                )
+
+                logger.info(
+                    f"{table} | "
+                    f"file={file_number} | "
+                    f"records={len(dataframe):,} | "
+                    f"size={parquet_buffer.getbuffer().nbytes:,} bytes"
+                )
+
+                total_records += len(dataframe)
+                file_number += 1
+
+                if endpoint["paginated"]:
+                    updated_values = dataframe["updated_at"].dropna().tolist()
+                    if updated_values:
+                        page_latest = max(updated_values)
+                        if (latest_updated_at is None or page_latest > latest_updated_at):
+                            latest_updated_at = page_latest
+
+                    next_page = payload.get("next_page")
+                    if next_page is None:
+                        break
+                    page = next_page
+                else:
+                    break
+            logger.info(f"{table}: extracted {total_records:,} records")
+        if latest_updated_at and latest_updated_at != watermark:
+            write_minio_watermark(
+                minio_client,
+                bucket,
+                source="fast_api",
+                object_name="shipments",
+                field="updated_since",
+                value=latest_updated_at,
+                file_number=file_number - 1
+            )
+            logger.info(f"Updated watermark to {latest_updated_at}")
+        logger.info("SwiftDrop API extraction completed")
+        logger.info("=" * 80)
+
+    except Exception:
+        logger.exception("SwiftDrop API extraction Failed")
+        raise 
+
+    finally:
+        minio_client.close()
 
 # if __name__ == "__main__":
 #     postgres_extraction() 
